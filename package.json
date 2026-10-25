@@ -1,0 +1,48 @@
+{
+  "name": "orbit-lan",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Личный центр управления проектами и агентами в домашней сети",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server/main.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "browser:test": "node test/browser.mjs",
+    "check:publication": "node scripts/check-publication.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run check && npm run format:check && npm test && npm run check:publication"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.0",
+    "@peculiar/x509": "^2.2.0",
+    "qrcode": "^1.5.4",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.0",
+    "prettier": "^3.9.10"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kpk1310032003cy10-hue/orbit-lan.git"
+  },
+  "homepage": "https://github.com/kpk1310032003cy10-hue/orbit-lan#readme",
+  "bugs": {
+    "url": "https://github.com/kpk1310032003cy10-hue/orbit-lan/issues"
+  },
+  "keywords": [
+    "codex",
+    "claude-code",
+    "pwa",
+    "ios",
+    "ipad",
+    "windows",
+    "agent-dashboard"
+  ]
+}

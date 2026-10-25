@@ -1,0 +1,6 @@
+node_modules/
+.local/
+test-results/
+coverage/
+package-lock.json
+docs/images/
