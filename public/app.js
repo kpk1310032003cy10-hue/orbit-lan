@@ -108,6 +108,8 @@ const S = {
   filter: 'all',
   search: '',
   eventSource: null,
+  drafts: new Map(),
+  agentListScroll: 0,
 };
 let toastTimer,
   refreshBusy = false,
@@ -115,6 +117,9 @@ let toastTimer,
   scrollAtBottom = true,
   historyBusy = false,
   fileVersion = null;
+const markupCache = new WeakMap();
+const emptyTranscript =
+  '<div class="empty chat-empty"><strong>С чего начнём?</strong><p>Напишите задачу или задайте вопрос.<br>Агент работает с выбранной папкой на вашем ПК.</p></div>';
 function toast(message, duration = 5000) {
   $('#toast').textContent = message;
   $('#toast').classList.add('show');
@@ -186,15 +191,32 @@ function shell() {
   renderMain();
 }
 function heading(title, text, cta = true) {
-  return `<div class="page-heading"><div><p class="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</p><h1>${title}</h1><p>${text}</p></div>${cta ? button('Новая задача', 'new-agent', 'primary', 'plus', 'data-online') : ''}</div>`;
+  return `<div class="page-heading">
+    <div><h1>${title}</h1><p>${text}</p></div>
+    ${cta ? `<div class="heading-actions">${button('Новая задача', 'new-agent', 'primary', 'plus', 'data-online')}${cta === 'home' ? button('Рабочие файлы', 'nav', 'secondary', 'folder', 'data-id="files"') : ''}</div>` : ''}
+  </div>`;
 }
 function agentCard(a) {
-  return `<button class="card agent-card" data-a="open-session" data-id="${escape(a.id)}"><div class="row">${providerIcon(a.provider)}<div><div class="provider-name">${providerName(a.provider)}</div><div class="provider-meta">${a.external ? escape(a.source === 'vscode' ? 'VS Code · наблюдение' : a.source === 'subagent' ? 'Дочерний агент · наблюдение' : 'Внешняя сессия') : 'Управление из Орбиты'}</div></div>${badge(a.status)}</div><h3>${escape(a.title)}</h3><p class="description">${a.external ? 'История диалога на вашем компьютере' : a.status === 'waiting' ? 'Агенту нужен ваш ответ или разрешение' : a.status === 'running' ? 'Задача выполняется на компьютере' : 'Откройте диалог, чтобы продолжить работу'}</p><div class="card-footer"><span class="folder-meta">${icon('folder', 12)}<span>${escape(leaf(a.cwd))}</span></span><span>${ago(a.updated)}</span></div></button>`;
+  const description = a.external
+    ? 'История на компьютере'
+    : a.status === 'waiting'
+      ? 'Откройте диалог, чтобы ответить агенту'
+      : ['running', 'starting'].includes(a.status)
+        ? 'Можно открыть диалог и уточнить задачу'
+        : 'Продолжите работу в этом диалоге';
+  return `<button class="card agent-card ${a.status === 'waiting' ? 'needs-attention' : ''}" data-a="open-session" data-id="${escape(a.id)}">
+    <div class="agent-card-top">${providerIcon(a.provider)}<div class="grow"><div class="provider-name">${providerName(a.provider)}</div><div class="provider-meta">${a.external ? escape(a.source === 'vscode' ? 'Из VS Code' : 'Внешний диалог') : 'В Орбите'}</div></div>${badge(a.status)}</div>
+    <h3>${escape(a.title)}</h3><p class="description">${description}</p>
+    <div class="card-footer"><span class="folder-meta">${icon('folder', 15)}<span>${escape(leaf(a.cwd))}</span></span><span>${ago(a.updated)}</span>${icon('arrow', 15)}</div>
+  </button>`;
 }
 function renderMain() {
   const main = $('#main');
   if (!main) return;
-  main.className = `main ${S.view === 'agents' && S.selected ? 'chat-main' : ''}`;
+  const chatting = S.view === 'agents' && Boolean(S.selected);
+  document.body.classList.toggle('chat-open', chatting);
+  document.body.dataset.view = S.view;
+  main.className = `main ${chatting ? 'chat-main' : ''}`;
   if (S.view === 'overview') dashboard(main);
   else if (S.view === 'agents') agentsView(main);
   else if (S.view === 'files') filesView(main);
@@ -205,65 +227,106 @@ function renderMain() {
 }
 function renderLimits() {
   const existing = $('#quota-panel');
-  const compact = S.view === 'agents' && Boolean(S.selected);
-  const provider = compact ? selected()?.provider : null;
-  if (compact && !['codex', 'claude'].includes(provider)) {
+  const compact = S.view === 'agents';
+  const provider = S.selected && compact ? selected()?.provider : null;
+  if (S.selected && compact && !['codex', 'claude'].includes(provider)) {
     existing?.remove();
     return;
   }
-  const options = { compact, provider };
-  const html = limitsHTML(S.overview.limits, options);
+  const html = limitsHTML(S.overview.limits, { compact, provider, summary: S.view === 'overview' });
   if (existing) {
+    const open = existing.open;
+    const expanded = [...existing.querySelectorAll('details[open]')].map(
+      (d) => d.dataset.quotaDetails,
+    );
     existing.outerHTML = html;
+    const panel = $('#quota-panel');
+    if (panel instanceof HTMLDetailsElement) panel.open = open;
+    panel.querySelectorAll('details').forEach((d) => {
+      if (expanded.includes(d.dataset.quotaDetails)) d.open = true;
+    });
     return;
   }
-  if (S.view === 'overview') $('#main .stats')?.insertAdjacentHTML('afterend', html);
-  else if (compact) $('.chat-heading')?.insertAdjacentHTML('afterend', html);
-  else if (S.view === 'agents') $('#main .toolbar')?.insertAdjacentHTML('beforebegin', html);
+  if (S.view === 'overview') $('#home-limit-slot')?.insertAdjacentHTML('beforeend', html);
+  else if (compact && S.selected) $('.chat-heading')?.insertAdjacentHTML('afterend', html);
+  else if (S.view === 'agents') $('#main .toolbar')?.insertAdjacentHTML('afterend', html);
   else if (S.view === 'settings')
     $('#main .settings-grid')?.insertAdjacentHTML('beforebegin', html);
 }
 function dashboard(main) {
-  const sys = S.overview.system,
-    ram = Math.round(((sys.memoryUsed || 0) / (sys.memoryTotal || 1)) * 100);
+  const sys = S.overview.system;
+  const priority = (a) =>
+    a.external
+      ? 5
+      : a.status === 'waiting'
+        ? 0
+        : ['running', 'starting'].includes(a.status)
+          ? 1
+          : 2;
   const sessions = allSessions()
     .filter((a) => a.provider !== 'task')
-    .slice(0, 4);
-  const bars = (n) =>
-    `<div class="stat-bar">${Array.from({ length: 18 }, (_, i) => `<i class="${i < Math.round(n * 0.18) ? 'filled' : ''}"></i>`).join('')}</div>`;
-  main.innerHTML = `${heading('Всё под контролем', 'Ваши проекты и агенты — рядом, где бы вы ни были дома.')}<div class="stats"><div class="stat"><div class="stat-label">${icon('agent', 14)}Активные агенты</div><div class="stat-value">${liveCount()}<span class="stat-sub">из Орбиты</span></div>${bars(liveCount() * 25)}</div><div class="stat"><div class="stat-label">${icon('folder', 14)}Рабочие проекты</div><div class="stat-value">${S.projects.length}<span class="stat-sub">подключено</span></div>${bars(Math.min(S.projects.length * 12, 100))}</div><div class="stat"><div class="stat-label">${icon('cpu', 14)}Загрузка CPU</div><div class="stat-value">${sys.cpu || 0}<span class="stat-sub">%</span></div>${bars(sys.cpu || 0)}</div><div class="stat"><div class="stat-label">${icon('memory', 14)}Память компьютера</div><div class="stat-value">${sys.memoryUsed ? (sys.memoryUsed / 1024 ** 3).toFixed(1) : '—'}<span class="stat-sub">/ ${sys.memoryTotal ? Math.round(sys.memoryTotal / 1024 ** 3) : '—'} ГБ</span></div>${bars(ram)}</div></div><div class="section-heading"><h2>На вашем радаре <span class="count">${sessions.length}</span></h2><button class="text-button" data-a="nav" data-id="agents">Все агенты →</button></div><div class="grid">${sessions.length ? sessions.map(agentCard).join('') : `<div class="empty"><strong>Место для вашей следующей идеи</strong>Создайте сессию и отправьте агенту задачу.</div>`}</div><div class="dashboard-lower"><section><div class="section-heading"><h2>Рабочие папки</h2><button class="text-button" data-a="nav" data-id="files">Открыть все →</button></div><div class="card">${
-    S.projects
-      .slice(0, 4)
-      .map(
-        (p) =>
-          `<button class="project-line" data-a="project" data-root="${escape(p.root)}" data-path="${escape(p.path)}"><span class="folder-icon">${icon('folder', 17)}</span><span class="grow"><strong>${escape(p.name)}</strong><span class="small">${escape(p.rootName)} · ${p.modified ? ago(p.modified) : 'Рабочая папка'}</span></span>${icon('arrow', 13)}</button>`,
-      )
-      .join('') || '<p class="small">Подключите папку в разделе «Подключение».</p>'
-  }</div></section><section><div class="section-heading"><h2>Всегда под рукой</h2><span class="small">IPHONE + IPAD</span></div><div class="quiet-card"><span class="accent">${icon('leaf', 27)}</span><h2>Компьютер работает.<br>Вы выбираете, откуда.</h2><p>Открывайте проекты, следите за задачами и общайтесь с агентами — с любимого устройства.</p>${button('Подключить устройство', 'nav', '', 'phone', 'data-id="settings"')}</div></section></div><p class="hint-line">${icon('shield', 12)}Управление и файлы передаются внутри вашей Wi-Fi сети.</p>`;
+    .sort((a, b) => priority(a) - priority(b) || b.updated - a.updated)
+    .slice(0, 3);
+  const waiting = S.overview.agents.filter((a) => a.status === 'waiting');
+  const projectRows = S.projects
+    .slice(0, 4)
+    .map(
+      (p) =>
+        `<button class="project-line" data-a="project" data-root="${escape(p.root)}" data-path="${escape(p.path)}"><span class="folder-icon">${icon('folder', 21)}</span><span class="grow"><strong>${escape(p.name)}</strong><span class="small">${escape(p.rootName)}</span></span>${icon('arrow', 17)}</button>`,
+    )
+    .join('');
+  main.innerHTML = `${heading('Всё под контролем', 'Ваши задачи, агенты и файлы — под рукой.', 'home')}
+    ${waiting.length ? `<button class="attention-card" data-a="open-session" data-id="${escape(waiting[0].id)}"><span class="attention-symbol">${icon('agent', 23)}</span><span class="grow"><strong>Агенту нужен ваш ответ</strong><span>${escape(waiting[0].title)}${waiting.length > 1 ? ` · ещё ${waiting.length - 1}` : ''}</span></span>${icon('arrow', 19)}</button>` : ''}
+    <div class="home-layout">
+      <div class="home-column"><section class="home-sessions"><div class="section-heading"><h2>Мои задачи <span class="count">${liveCount() ? `${liveCount()} в работе` : 'Недавние'}</span></h2><button class="text-button" data-a="nav" data-id="agents">Все диалоги ${icon('arrow', 15)}</button></div>
+        <div class="session-grid">${sessions.length ? sessions.map(agentCard).join('') : `<div class="empty">${icon('agent', 30)}<strong>Начните с одной задачи</strong><p>Выберите папку и расскажите агенту, что нужно сделать.</p>${button('Создать первую задачу', 'new-agent', 'primary', 'plus', 'data-online')}</div>`}</div>
+      </section>
+      <section class="home-projects"><div class="section-heading"><h2>Рабочие папки <span class="count">${S.projects.length}</span></h2><button class="text-button" data-a="nav" data-id="files">Все файлы ${icon('arrow', 15)}</button></div><div class="card project-card">${projectRows || '<p class="small">Подключите рабочую папку с компьютера в разделе «Подключение».</p>'}</div></section>
+      </div><div class="home-column"><aside class="home-limits" id="home-limit-slot"></aside>
+      <section class="home-computer"><div class="section-heading"><h2>Ваш компьютер</h2><button class="text-button" data-a="nav" data-id="processes">Подробнее ${icon('arrow', 15)}</button></div>
+        <div class="card computer-card"><div class="computer-name">${icon('cpu', 22)}<strong>${escape(sys.hostname || 'Компьютер')}</strong><span class="computer-online"><span class="status-dot"></span>На связи</span></div><div class="computer-metrics"><div><span>Процессор</span><strong>${Number.isFinite(sys.cpu) ? sys.cpu + '%' : '—'}</strong></div><div><span>Память</span><strong>${sys.memoryUsed ? (sys.memoryUsed / 1024 ** 3).toFixed(1) : '—'} <small>/ ${sys.memoryTotal ? Math.round(sys.memoryTotal / 1024 ** 3) : '—'} ГБ</small></strong></div></div><p class="computer-note">${icon('shield', 15)}Задачи выполняются на этом компьютере.</p></div>
+      </section>
+    </div></div>`;
 }
-function agentsView(main) {
-  if (S.selected) return chatView(main);
-  const sessions = allSessions().filter((a) => a.provider !== 'task');
-  const filtered = sessions.filter(
+function matchingSessions() {
+  return allSessions().filter(
     (a) =>
+      a.provider !== 'task' &&
       (S.filter === 'all' ||
         (S.filter === 'managed' && !a.external) ||
         (S.filter === 'external' && a.external)) &&
       `${a.title} ${a.cwd} ${a.provider}`.toLowerCase().includes(S.search.toLowerCase()),
   );
-  main.innerHTML = `${heading('Ваши агенты', 'Общение, ход работы и решения — в одном месте.')}<div class="toolbar"><label class="search">${icon('search', 15)}<input id="agent-search" type="search" placeholder="Найти диалог или проект" aria-label="Поиск диалогов" value="${escape(S.search)}"></label><div class="segmented">${[
-    ['all', 'Все'],
-    ['managed', 'Из Орбиты'],
-    ['external', 'Из VS Code'],
-  ]
-    .map(
-      ([id, title]) =>
-        `<button data-a="filter" data-id="${id}" class="${S.filter === id ? 'active' : ''}">${title}</button>`,
-    )
-    .join(
-      '',
-    )}</div></div><div id="agent-grid" class="grid">${filtered.map(agentCard).join('') || '<div class="empty"><strong>Здесь пока тихо</strong>Создайте задачу или измените фильтр.</div>'}</div>${S.overview.discovered.error ? `<p class="notice">${escape(S.overview.discovered.error)}</p>` : ''}<p class="hint-line">${icon('shield', 12)}Полное управление доступно сессиям, которые вы запускаете в Орбите.</p>`;
 }
+function renderAgentGrid() {
+  const grid = $('#agent-grid');
+  if (!grid) return;
+  grid.innerHTML =
+    matchingSessions().map(agentCard).join('') ||
+    '<div class="empty"><strong>Диалоги не найдены</strong><p>Попробуйте другое название или измените фильтр.</p></div>';
+  document.querySelectorAll('[data-a="filter"]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.id === S.filter);
+    b.setAttribute('aria-pressed', String(b.dataset.id === S.filter));
+  });
+}
+function agentsView(main) {
+  if (S.selected) return chatView(main);
+  main.innerHTML = `${heading('Ваши агенты', 'Откройте диалог или начните новую задачу.')}
+    <div class="toolbar"><label class="search">${icon('search', 20)}<input id="agent-search" type="search" placeholder="Поиск по диалогам и папкам" aria-label="Поиск диалогов" value="${escape(S.search)}"></label><div class="segmented" role="group" aria-label="Источник диалогов">${[
+      ['all', 'Все'],
+      ['managed', 'В Орбите'],
+      ['external', 'Из VS Code'],
+    ]
+      .map(
+        ([id, title]) =>
+          `<button data-a="filter" data-id="${id}" class="${S.filter === id ? 'active' : ''}" aria-pressed="${S.filter === id}">${title}</button>`,
+      )
+      .join('')}</div></div>
+    <div id="agent-grid" class="grid">${matchingSessions().map(agentCard).join('') || '<div class="empty"><strong>Здесь пока тихо</strong><p>Создайте задачу или измените фильтр.</p></div>'}</div>
+    ${S.overview.discovered.error ? `<p class="notice">${escape(S.overview.discovered.error)}</p>` : ''}
+    <p class="hint-line">${icon('shield', 15)}Полное управление доступно задачам, запущенным в Орбите.</p>`;
+}
+
 function renderTranscript(events) {
   const result = [],
     itemMessages = new Map();
@@ -350,7 +413,7 @@ function renderTranscript(events) {
   return result
     .map((m) => {
       if (m.type === 'tool')
-        return `<details class="tool"><summary>${escape(m.title)}${m.status ? ` · ${escape(m.status)}` : ''}</summary><pre class="tool-output">${escape(m.text || 'Выполняется…')}</pre></details>`;
+        return `<details class="tool" data-tool-id="${escape(m.id || m.title)}"><summary>${escape(m.title)}${m.status ? ` · ${escape({ inProgress: 'В работе', completed: 'Готово', failed: 'Ошибка', declined: 'Отклонено' }[m.status] || m.status)}` : ''}</summary><pre class="tool-output">${escape(m.text || 'Выполняется…')}</pre></details>`;
       if (m.type === 'output') return `<pre class="tool-output">${escape(m.text)}</pre>`;
       return `<div class="message ${m.type}">${['user', 'assistant'].includes(m.type) ? `<div class="message-label">${m.type === 'user' ? 'ВЫ' : providerName(selected()?.provider)}</div>` : ''}<div class="message-text">${escape(m.text)}</div></div>`;
     })
@@ -375,14 +438,38 @@ function chatView(main) {
     return agentsView(main);
   }
   const sessions = allSessions().slice(0, 45);
-  main.innerHTML = `<div class="chat-layout has-selected"><aside class="card chat-sessions"><div class="row between">${button('Новая задача', 'new-agent', 'soft', 'plus')}<button class="icon-button" data-a="chat-back" aria-label="Все сессии">${icon('grid', 16)}</button></div>${sessions.map((s) => `<button class="chat-session ${s.id === a.id ? 'active' : ''}" data-a="open-session" data-id="${escape(s.id)}"><strong>${escape(s.title)}</strong><div class="row between"><span class="small">${providerName(s.provider)} · ${escape(leaf(s.cwd))}</span></div></button>`).join('')}</aside><section class="chat-panel"><header class="chat-heading"><button class="mobile-back" data-a="chat-back" aria-label="Назад">${icon('back', 18)}</button>${providerIcon(a.provider)}<div class="grow"><h3>${escape(a.title)}</h3><div class="small">${providerName(a.provider)} · ${escape(leaf(a.cwd))}</div></div><span id="chat-status">${badge(a.status)}</span>${a.external ? button('Продолжить в Орбите', 'fork', 'soft', null, 'data-online') : a.canStop ? button('Стоп', 'stop', 'danger', 'stop', 'data-online') : ''}</header>${a.external ? '<div class="external-info">Диалог открыт в другом клиенте. История обновляется каждые 10 секунд. Для полного управления создайте ветку в Орбите.</div>' : ''}<div class="chat-scroll" id="chat-scroll">${a.external && S.cursor ? button('Загрузить предыдущие сообщения', 'older-external', 'soft') : !a.external && S.events.length >= 300 ? button('Предыдущие события', 'older-events', 'soft') : ''}<div id="transcript">${renderTranscript(a.external ? externalEvents(S.externalItems) : S.events) || '<div class="empty"><strong>Диалог готов</strong>Напишите, с чем вам помочь.</div>'}</div></div><div id="prompt-area">${promptHTML(a)}</div>${a.provider === 'task' ? '' : `<form id="composer" class="chat-compose"><div class="compose-row"><textarea id="message" rows="1" placeholder="${a.external ? 'Сообщение в очередь Codex…' : 'Напишите агенту…'}" aria-label="Сообщение агенту" required maxlength="32000"></textarea><button class="send" aria-label="Отправить" data-online>${icon('send', 17)}</button></div><div class="compose-hint"><span>${a.external ? 'Очередь обработает клиент Codex, если он её поддерживает' : a.provider === 'codex' && a.canStop ? 'Сообщение уточнит выполняемую задачу' : 'Задача выполняется на вашем компьютере'}</span><span>⌘ / Ctrl + Enter</span></div></form>`}</section></div>`;
+  main.innerHTML = `<div class="chat-layout has-selected">
+    <aside class="card chat-sessions"><div class="row between">${button('Новая задача', 'new-agent', 'soft', 'plus')}<button class="icon-button" data-a="chat-back" aria-label="Все сессии">${icon('grid', 19)}</button></div>${sessions.map((s) => `<button class="chat-session ${s.id === a.id ? 'active' : ''}" data-a="open-session" data-id="${escape(s.id)}"><strong>${escape(s.title)}</strong><span class="small">${providerName(s.provider)} · ${escape(leaf(s.cwd))}</span></button>`).join('')}</aside>
+    <section class="chat-panel"><header class="chat-heading"><button class="mobile-back icon-button" data-a="chat-back" aria-label="Назад к диалогам">${icon('back', 23)}</button>${providerIcon(a.provider)}<div class="grow"><h1 class="chat-title">${escape(a.title)}</h1><div class="small">${providerName(a.provider)} · ${escape(leaf(a.cwd))}</div></div><span id="chat-status">${badge(a.status)}</span>${!a.external && a.canStop ? button('Стоп', 'stop', 'danger', 'stop', 'data-online') : ''}</header>
+    ${a.external ? `<details class="external-info"><summary>${icon('shield', 16)}Диалог из ${a.source === 'vscode' ? 'VS Code' : 'другого клиента'} ${icon('arrow', 14)}</summary><div><p>История обновляется каждые 10 секунд. Чтобы отправлять задачи и останавливать их из Орбиты, продолжите диалог отдельной веткой.</p>${button('Продолжить в Орбите', 'fork', 'secondary', 'plus', 'data-online')}</div></details>` : ''}
+    <div class="chat-scroll" id="chat-scroll">${a.external && S.cursor ? button('Предыдущие сообщения', 'older-external', 'soft') : !a.external && S.events.length >= 300 ? button('Предыдущие события', 'older-events', 'soft') : ''}<div id="transcript">${renderTranscript(a.external ? externalEvents(S.externalItems) : S.events) || emptyTranscript}</div></div>
+    <div id="prompt-area">${promptHTML(a)}</div>
+    ${a.provider === 'task' ? '' : `<form id="composer" class="chat-compose"><div class="compose-row"><textarea id="message" rows="1" placeholder="${a.external ? 'Напишите в Codex…' : a.canStop ? 'Добавьте уточнение…' : 'Напишите сообщение…'}" aria-label="Сообщение агенту" required maxlength="32000">${escape(S.drafts.get(a.id) || '')}</textarea><button class="send" aria-label="Отправить" data-online>${icon('send', 22)}</button></div><div class="compose-hint"><span>${a.external ? 'Отправка в очередь другого клиента' : a.canStop ? 'Уточнение к текущей задаче' : 'На вашем компьютере · ' + escape(leaf(a.cwd))}</span><span class="keyboard-hint">⌘ / Ctrl + Enter</span></div></form>`}
+    </section></div>`;
   const scroll = $('#chat-scroll');
   scrollAtBottom = true;
   scroll.scrollTop = scroll.scrollHeight;
   scroll.addEventListener('scroll', () => {
     scrollAtBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 90;
   });
+  fitComposer();
+  markupCache.set($('#prompt-area'), promptHTML(a));
 }
+function fitComposer() {
+  const input = $('#message');
+  if (!input) return;
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 144) + 'px';
+}
+function updateViewport() {
+  const viewport = window.visualViewport;
+  if (viewport && Math.abs(viewport.scale - 1) > 0.05) return;
+  const height = Math.round(viewport?.height || innerHeight);
+  document.documentElement.style.setProperty('--viewport-height', height + 'px');
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+  document.body.classList.toggle('keyboard-open', typing && innerHeight - height > 120);
+}
+
 function promptHTML(a) {
   return (a.pending || [])
     .map((p) => {
@@ -429,16 +516,23 @@ function updateChat() {
     transcript = $('#transcript');
   if (!a || !transcript) return;
   const openTools = new Set(
-    [...transcript.querySelectorAll('details[open]')].map(
-      (d) => d.querySelector('summary').textContent,
-    ),
+    [...transcript.querySelectorAll('details[open]')].map((d) => d.dataset.toolId),
   );
-  transcript.innerHTML = renderTranscript(a.external ? externalEvents(S.externalItems) : S.events);
+  const content =
+    renderTranscript(a.external ? externalEvents(S.externalItems) : S.events) || emptyTranscript;
+  const selection = window.getSelection();
+  const selecting =
+    selection && !selection.isCollapsed && transcript.contains(selection.anchorNode);
+  if (!selecting && markupCache.get(transcript) !== content) {
+    transcript.innerHTML = content;
+    markupCache.set(transcript, content);
+  }
   transcript.querySelectorAll('details').forEach((d) => {
-    if (openTools.has(d.querySelector('summary').textContent)) d.open = true;
+    if (openTools.has(d.dataset.toolId)) d.open = true;
   });
   if (scrollAtBottom) $('#chat-scroll').scrollTop = $('#chat-scroll').scrollHeight;
-  $('#chat-status').innerHTML = badge(a.status);
+  const status = $('#chat-status');
+  if (status.innerHTML !== badge(a.status)) status.innerHTML = badge(a.status);
   const heading = $('.chat-heading');
   const stop = heading.querySelector('[data-a="stop"]');
   if (a.canStop && !stop)
@@ -448,10 +542,23 @@ function updateChat() {
     );
   else if (!a.canStop && stop) stop.remove();
   const area = $('#prompt-area'),
-    promptIds = (a.pending || []).map((p) => p.id).join(',');
-  if (area.dataset.ids !== promptIds) {
-    area.innerHTML = promptHTML(a);
-    area.dataset.ids = promptIds;
+    html = promptHTML(a);
+  if (markupCache.get(area) !== html) {
+    area.innerHTML = html;
+    markupCache.set(area, html);
+  }
+  const input = $('#message');
+  if (input) {
+    input.placeholder = a.external
+      ? 'Напишите в Codex…'
+      : a.canStop
+        ? 'Добавьте уточнение…'
+        : 'Напишите сообщение…';
+    $('.compose-hint > span').textContent = a.external
+      ? 'Отправка в очередь другого клиента'
+      : a.canStop
+        ? 'Уточнение к текущей задаче'
+        : 'На вашем компьютере · ' + leaf(a.cwd);
   }
   setConnection(S.online);
 }
@@ -476,26 +583,30 @@ async function loadFiles(root = S.fileRoot, p = S.filePath) {
 }
 function processesView(main) {
   const sys = S.overview.system;
-  main.innerHTML = `${heading('Пульс компьютера', 'Важные процессы, команды и их журналы.', false)}<div class="section-heading"><h2>Запустить команду</h2><span class="small">${escape(sys.hostname || '')} · POWERSHELL</span></div><form id="task-form" class="task-form"><select class="input" name="cwd" aria-label="Рабочая папка">${S.projects.map((p) => `<option value="${escape(p.fullPath)}">${escape(p.name)}</option>`).join('')}</select><input class="input" name="command" placeholder="Например: npm run dev" aria-label="Команда PowerShell" required maxlength="4000"><button class="button primary" data-online>${icon('terminal', 16)}Запустить</button></form><div class="grid">${S.overview.tasks
-    .slice(0, 8)
-    .map(
-      (a) =>
-        `<div class="card task-card"><div class="row">${providerIcon('task')}<h3 class="grow">${escape(a.title)}</h3>${badge(a.status)}</div><div class="card-footer"><span class="path">${escape(leaf(a.cwd))}</span><div class="row gap">${button('Журнал', 'open-session', 'soft', null, `data-id="${escape(a.id)}"`)}${a.canStop ? button('Стоп', 'stop-task', 'danger', 'stop', `data-id="${escape(a.id)}" data-online`) : ''}</div></div></div>`,
+  main.innerHTML = `${heading('Ваш компьютер', 'Процессы, команды и их журналы.', false)}
+    <div class="section-heading"><h2>Запустить команду</h2><span class="small">PowerShell</span></div>
+    <form id="task-form" class="task-form"><label>Рабочая папка<select class="input" name="cwd" aria-label="Рабочая папка">${S.projects.map((p) => `<option value="${escape(p.fullPath)}">${escape(p.name)}</option>`).join('')}</select></label><label>Команда<input class="input" name="command" placeholder="Например: npm run dev" aria-label="Команда PowerShell" required maxlength="4000"></label><button class="button primary" data-online>${icon('terminal', 18)}Запустить</button></form>
+    <div class="grid">${S.overview.tasks
+      .slice(0, 8)
+      .map(
+        (a) =>
+          `<div class="card task-card"><div class="row">${providerIcon('task')}<h3 class="grow">${escape(a.title)}</h3>${badge(a.status)}</div><div class="card-footer"><span class="path">${escape(leaf(a.cwd))}</span><div class="row gap">${button('Журнал', 'open-session', 'soft', null, `data-id="${escape(a.id)}"`)}${a.canStop ? button('Стоп', 'stop-task', 'danger', 'stop', `data-id="${escape(a.id)}" data-online`) : ''}</div></div></div>`,
+      )
+      .join('')}</div>
+    <div class="section-heading"><h2>Процессы <span class="count">${sys.processes?.length || 0}</span></h2><span class="updated-label">${sys.updated ? ago(sys.updated) : 'Обновляем…'}</span></div>
+    <div class="card table-wrap"><table><thead><tr><th scope="col">Процесс</th><th scope="col">PID</th><th scope="col">Память</th><th scope="col">CPU, всего</th></tr></thead><tbody>${(
+      sys.processes || []
     )
-    .join(
-      '',
-    )}</div><div class="section-heading"><h2>Наблюдаемые процессы <span class="count">${sys.processes?.length || 0}</span></h2><span class="updated-label">${sys.updated ? ago(sys.updated) : 'Обновляем…'}</span></div><div class="card table-wrap"><table><thead><tr><th>Процесс</th><th>PID</th><th>Память</th><th>CPU, накоплено</th></tr></thead><tbody>${(
-    sys.processes || []
-  )
-    .sort((a, b) => b.memory - a.memory)
-    .map(
-      (p) =>
-        `<tr><td>${escape(p.name)}${p.owned ? ' <span class="small">· Орбита</span>' : ''}</td><td class="muted">${p.pid}</td><td>${size(p.memory)}</td><td class="muted">${Math.round(p.cpuSeconds)} с</td></tr>`,
-    )
-    .join(
-      '',
-    )}</tbody></table></div>${sys.error ? `<p class="notice">${escape(sys.error)}</p>` : ''}<p class="hint-line">${icon('clock', 12)}Список процессов обновляется каждые 10 секунд. Остановка доступна командам, запущенным из Орбиты.</p>`;
+      .sort((a, b) => b.memory - a.memory)
+      .map(
+        (p) =>
+          `<tr><td>${escape(p.name)}${p.owned ? ' <span class="small">· Орбита</span>' : ''}</td><td><span class="mobile-cell-label" aria-hidden="true">PID</span>${p.pid}</td><td><span class="mobile-cell-label" aria-hidden="true">Память</span>${size(p.memory)}</td><td><span class="mobile-cell-label" aria-hidden="true">CPU, всего</span>${Math.round(p.cpuSeconds)} с</td></tr>`,
+      )
+      .join('')}</tbody></table></div>
+    ${sys.error ? `<p class="notice">${escape(sys.error)}</p>` : ''}
+    <p class="hint-line">${icon('clock', 16)}Обновление каждые 10 секунд. Остановить можно команды, запущенные из Орбиты.</p>`;
 }
+
 function settingsView(main) {
   const b = S.boot;
   main.innerHTML = `${heading('Ближе к вашим устройствам', 'Одна настройка — и ваше рабочее пространство всегда рядом.', false)}<div class="settings-grid"><section class="card"><h2>iPhone и iPad</h2>${b.pairing ? `<div class="row pairing"><img class="qr" src="${b.qr}" alt="QR-код подключения к Орбите"><div class="grow"><p class="small">Сканируйте камерой телефона</p><div class="pair-code"><div class="small">ОДНОРАЗОВЫЙ КОД</div><div class="pin">${b.pairing.pin}</div><div class="small">До ${new Date(b.pairing.expires).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div></div>${button('Обновить код', 'rotate-pin', 'soft', 'refresh')}</div></div>` : `<div class="row">${icon('shield', 22)}<p class="small">Это устройство уже подключено. Для нового устройства откройте Орбиту на компьютере.</p></div>`}<ol><li>Подключите устройство к той же Wi-Fi сети.</li><li>Откройте адрес подключения, установите локальный сертификат и включите доверие к нему.</li><li>Откройте защищённый адрес и введите код с компьютера.</li><li>В Safari: «Поделиться → На экран Домой».</li></ol><div class="path">${escape(b.urls.setup)}</div>${button('Скопировать адрес', 'copy-url', 'soft', 'copy')}<p class="small">Для полного режима приложения нужен доверенный HTTPS-сертификат. В фоне iOS может приостанавливать страницу; при открытии данные синхронизируются.</p>${b.fingerprint ? `<details><summary class="small">Отпечаток сертификата SHA-256</summary><code class="fingerprint">${b.fingerprint}</code></details>` : ''}</section><section class="card"><div class="row between"><h2>Доступные агенты</h2><button class="icon-button" data-a="providers-refresh" aria-label="Проверить подключение агентов">${icon('refresh', 15)}</button></div>${['codex', 'claude'].map((p) => `<div class="provider-status">${providerIcon(p)}<div class="grow"><strong>${providerName(p)}</strong><div class="small">${b.providers[p].authenticated ? 'Аккаунт подключён' : b.providers[p].available ? 'Требуется вход на компьютере' : 'Не удалось подключиться'}</div></div>${badge(b.providers[p].authenticated ? 'idle' : 'waiting')}</div>${b.providers[p].error ? `<p class="small">${escape(b.providers[p].error)}</p>` : ''}`).join('')}<p class="notice">Диалоги, запущенные из Орбиты, поддерживают сообщения, остановку и ответы на запросы. Существующие диалоги VS Code доступны для просмотра и продолжения в отдельной ветке.</p>${!b.providers.claude.authenticated ? '<p class="small">Для Claude откройте файл «Войти в Claude.cmd» на компьютере и войдите в аккаунт. После этого обновите статус.</p>' : ''}<p class="small">ИИ-агенты обращаются к своим провайдерам через интернет. Локальным остаётся доступ телефона к компьютеру.</p></section><section class="card"><h2>Подключённые устройства</h2>${S.devices.length ? S.devices.map((d) => `<div class="device">${icon('phone', 20)}<div class="grow"><strong>${escape(d.name)}</strong><div class="small">${ago(d.seen)}${d.id === S.session.device.id ? ' · это устройство' : ''}</div></div><button class="text-button" data-a="revoke-device" data-id="${escape(d.id)}">Отключить</button></div>`).join('') : '<p class="small">Телефон и планшет появятся здесь после подключения.</p>'}<p class="small">Разрешение действует 30 дней. Отключение сразу закрывает доступ устройства.</p>${!S.session.local ? button('Выйти на этом устройстве', 'logout', 'soft') : ''}</section><section class="card"><h2>Рабочее пространство</h2>${b.roots.map((r) => `<p><strong class="small">${escape(r.name)}</strong><br><span class="path">${escape(r.path)}</span></p>`).join('')}${S.session.local ? button('Подключить папку', 'add-root', 'soft', 'plus') : '<p class="small">Новые корневые папки подключаются с компьютера.</p>'}<p class="notice">Компьютер должен быть включён и подключён к сети. После сна или смены Wi-Fi соединение восстановится при доступности компьютера.</p></section></div>`;
@@ -535,6 +646,7 @@ async function openFile(p) {
   );
 }
 function pairPage() {
+  document.body.classList.remove('chat-open');
   app.innerHTML = `<main class="pair-page"><div class="brand-mark">◉</div><p class="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</p><h1>Добро пожаловать<br>на вашу Орбиту.</h1><p>Проекты, файлы и агенты вашего компьютера — на этом устройстве.</p><form id="pair-form" class="card"><label class="field">Как назвать это устройство<input name="name" value="${/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)) ? 'Мой iPad' : /iPhone/.test(navigator.userAgent) ? 'Мой iPhone' : 'Моё устройство'}" required maxlength="80" autocomplete="off"></label><label class="field">Одноразовый код с компьютера<input class="pin-input" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required autocomplete="one-time-code"></label><p class="form-error" role="alert"></p><button class="button primary full">Подключить устройство ${icon('arrow', 15)}</button><p class="small">На компьютере: Орбита → Подключение.</p></form><p class="hint-line">${icon('shield', 14)}Подключение только внутри вашей Wi-Fi сети.</p></main>`;
 }
 async function projects() {
@@ -579,6 +691,7 @@ async function navigate(view) {
   S.view = view;
   history.replaceState(null, '', view === 'overview' ? '/' : `/#${view}`);
   shell();
+  window.scrollTo(0, 0);
   if (view === 'files') await loadFiles();
   if (view === 'settings') {
     const result = await Promise.all([api('/api/bootstrap'), api('/api/devices')]);
@@ -588,6 +701,7 @@ async function navigate(view) {
   }
 }
 async function openSession(id) {
+  if (!S.selected) S.agentListScroll = S.view === 'agents' ? window.scrollY : 0;
   S.selected = id;
   S.view = 'agents';
   S.events = [];
@@ -595,6 +709,7 @@ async function openSession(id) {
   S.cursor = null;
   historyBusy = false;
   shell();
+  window.scrollTo(0, 0);
   await loadHistory();
 }
 function connectEvents() {
@@ -672,9 +787,10 @@ document.addEventListener('click', async (event) => {
     else if (a === 'chat-back') {
       S.selected = null;
       shell();
+      window.scrollTo(0, S.agentListScroll);
     } else if (a === 'filter') {
       S.filter = id;
-      renderMain();
+      renderAgentGrid();
     } else if (a === 'root') await loadFiles(id, '');
     else if (a === 'project') {
       S.view = 'files';
@@ -682,6 +798,7 @@ document.addEventListener('click', async (event) => {
       S.fileRoot = root;
       S.filePath = p;
       shell();
+      window.scrollTo(0, 0);
       await loadFiles(root, p);
     } else if (a === 'file-open') {
       b.dataset.directory === 'true' ? await loadFiles(S.fileRoot, p) : await openFile(p);
@@ -773,14 +890,17 @@ document.addEventListener('submit', async (event) => {
       await openSession(r.id);
     } else if (form.id === 'composer') {
       const input = $('#message'),
-        text = input.value.trim();
+        draft = input.value,
+        text = draft.trim();
       if (!text) return;
       const a = selected();
       const r = await api(
         a.external ? `/api/external/${a.id}/queue` : `/api/agents/${a.id}/message`,
         { text },
       );
-      input.value = '';
+      if (input.value === draft) input.value = '';
+      if (S.drafts.get(a.id) === draft) S.drafts.delete(a.id);
+      fitComposer();
       if (a.external) toast(r.note, 10000);
       await refresh();
       await loadHistory();
@@ -828,14 +948,25 @@ document.addEventListener('submit', async (event) => {
 });
 document.addEventListener('input', (event) => {
   if (event.target.id === 'agent-search') {
-    const pos = event.target.selectionStart;
     S.search = event.target.value;
-    renderMain();
-    const input = $('#agent-search');
-    input.focus();
-    if (input.type !== 'search') input.setSelectionRange(pos, pos);
+    renderAgentGrid();
+  } else if (event.target.id === 'message') {
+    S.drafts.set(S.selected, event.target.value);
+    fitComposer();
   }
 });
+
+window.visualViewport?.addEventListener('resize', updateViewport);
+window.addEventListener('resize', () => {
+  updateViewport();
+  fitComposer();
+});
+document.addEventListener('focusin', () => requestAnimationFrame(updateViewport));
+document.addEventListener('focusout', () => requestAnimationFrame(updateViewport));
+document.addEventListener('selectionchange', () => {
+  if (window.getSelection()?.isCollapsed) requestAnimationFrame(updateChat);
+});
+updateViewport();
 document.addEventListener('keydown', (e) => {
   if (e.target.id === 'message' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault();

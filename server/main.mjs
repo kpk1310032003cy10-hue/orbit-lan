@@ -401,7 +401,6 @@ async function handler(req, res) {
       'index.html',
       'app.js',
       'style.css',
-      'touch.css',
       'limits.js',
       'limits.css',
       'manifest.webmanifest',

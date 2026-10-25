@@ -1,11 +1,10 @@
 // Only the public application shell is cached. Conversations, file contents and
 // credentials always go directly to the computer and never enter Cache Storage.
-const CACHE = 'orbit-shell-v3';
+const CACHE = 'orbit-shell-v4';
 const SHELL = [
   '/',
   '/app.js',
   '/style.css',
-  '/touch.css',
   '/limits.js',
   '/limits.css',
   '/icon.svg',
