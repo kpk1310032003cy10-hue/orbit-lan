@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Appearance
+
+- System, light and dark themes with a header control and a settings selector.
+- Device-local preference applied before styles load, live system changes and tab synchronization.
+- Shared semantic colors for chat, files, quotas, forms, dialogs and notifications.
+- Theme startup remains usable when browser storage is blocked.
+
 ### Mobile interface
 
 - Calm colors, readable type, larger touch controls and task-first home screen.
