@@ -28,7 +28,7 @@
   padding: 9px 10px;
   border-radius: 12px;
   font-size: 13px;
-  color: #326b42;
+  color: var(--green);
   white-space: nowrap;
 }
 .quota-grid {
@@ -37,7 +37,7 @@
   gap: 16px;
 }
 .quota-card {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 21px;
   padding: 20px;
@@ -55,23 +55,23 @@
   font-weight: 600;
 }
 .quota-provider-symbol {
-  color: #4f744b;
+  color: var(--green);
   font-size: 22px;
   line-height: 1;
 }
 .quota-provider-symbol.claude {
-  color: #a77248;
+  color: var(--provider-claude-ink);
 }
 .quota-plan {
-  color: #687b60;
+  color: var(--muted);
   font-size: 12px;
   text-transform: capitalize;
 }
 .quota-state {
   margin-left: auto;
   font-size: 11px;
-  color: #5c7453;
-  background: #f0f5e9;
+  color: var(--status-success-ink);
+  background: var(--mint);
   padding: 5px 8px;
   border-radius: 8px;
 }
@@ -90,7 +90,7 @@
   flex-wrap: wrap;
   gap: 5px;
   font-size: 13px;
-  color: #52694a;
+  color: var(--ink-secondary);
 }
 .quota-window-heading > span:first-child {
   width: 100%;
@@ -100,20 +100,20 @@
   font-size: 28px;
   font-weight: 550;
   letter-spacing: -0.7px;
-  color: #37653a;
+  color: var(--green);
 }
 .quota-window.warning .quota-value {
-  color: #916c1e;
+  color: var(--amber);
 }
 .quota-window.low .quota-value {
-  color: #a8423d;
+  color: var(--red);
 }
 .quota-window.unknown .quota-value {
-  color: #66775d;
+  color: var(--muted);
 }
 .quota-remaining-label {
   font-size: 11px;
-  color: #637558;
+  color: var(--muted);
 }
 .quota-window meter {
   display: block;
@@ -121,7 +121,7 @@
   height: 5px;
   margin: 11px 0;
   border: 0;
-  background: #edf1e5;
+  background: var(--meter-track);
   border-radius: 4px;
   overflow: hidden;
   appearance: none;
@@ -129,27 +129,27 @@
 }
 .quota-window meter::-webkit-meter-bar {
   border: 0;
-  background: #edf1e5;
+  background: var(--meter-track);
   border-radius: 4px;
   height: 5px;
 }
 .quota-window meter::-webkit-meter-optimum-value {
-  background: #89a477;
+  background: var(--meter-fill);
   border-radius: 4px;
 }
 .quota-window.warning meter::-webkit-meter-optimum-value {
-  background: #baa05f;
+  background: var(--meter-warning);
 }
 .quota-window.low meter::-webkit-meter-optimum-value {
-  background: #be7770;
+  background: var(--meter-low);
 }
 .quota-window meter::-moz-meter-bar {
-  background: #89a477;
+  background: var(--meter-fill);
   border-radius: 4px;
 }
 .quota-reset {
   font-size: 12px;
-  color: #5b7051;
+  color: var(--ink-secondary);
   line-height: 1.7;
   margin-top: 8px;
 }
@@ -160,37 +160,37 @@
 .quota-note,
 .quota-observed {
   font-size: 12px;
-  color: #627757;
+  color: var(--muted);
   line-height: 1.7;
   margin: 10px 0 0;
 }
 .quota-empty {
   font-size: 14px;
-  color: #64765b;
+  color: var(--muted);
   line-height: 1.7;
   margin: 0;
 }
 .quota-observed {
-  border-top: 1px solid #e6edde;
+  border-top: 1px solid var(--line-soft);
   padding-top: 12px;
   margin-top: 14px;
 }
 .quota-disclaimer {
   font-size: 12px;
-  color: #65795a;
+  color: var(--muted);
   line-height: 1.7;
   margin: 12px 0 0;
 }
 .quota-bucket-name {
   font-size: 13px;
   font-weight: 550;
-  color: #566f4b;
+  color: var(--ink-secondary);
   margin: 15px 0 12px;
 }
 .quota-notice {
   font-size: 12px;
-  color: #855d25;
-  background: #fcf4e4;
+  color: var(--warning-text);
+  background: var(--warning-bg);
   padding: 12px;
   border-radius: 11px;
   line-height: 1.7;
@@ -204,7 +204,7 @@
   margin-bottom: 8px;
 }
 .quota-details {
-  border-top: 1px solid #e8eedf;
+  border-top: 1px solid var(--line-soft);
   margin-top: 4px;
 }
 .quota-details > summary {
@@ -214,7 +214,7 @@
   gap: 10px;
   min-height: 44px;
   padding: 10px 0 0;
-  color: #5b7450;
+  color: var(--ink-secondary);
   font-size: 12px;
   cursor: pointer;
   list-style: none;
@@ -233,7 +233,7 @@
 .quota-panel.compact {
   border: 1px solid var(--line);
   border-radius: 15px;
-  background: #f8faf3;
+  background: var(--surface-subtle);
   margin: 0 0 18px;
 }
 .quota-compact-heading {
@@ -244,7 +244,7 @@
   padding: 12px 16px;
   cursor: pointer;
   list-style: none;
-  color: #57724b;
+  color: var(--ink-secondary);
 }
 .quota-summary-name {
   font-size: 12px;
@@ -272,14 +272,14 @@
 .quota-quick-provider strong {
   font-size: 13px;
   font-weight: 600;
-  color: #3d6537;
+  color: var(--green);
 }
 .quota-quick-name {
   font-weight: 550;
-  color: #536e46;
+  color: var(--ink-secondary);
 }
 .quota-quick-stale {
-  color: #89672f;
+  color: var(--amber);
   font-size: 11px;
 }
 .quota-expanded {

@@ -8,6 +8,9 @@ const escape = (s) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
   );
 const paths = {
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+  moon: '<path d="M20.6 14a8.5 8.5 0 0 1-10.5-10.6A8.5 8.5 0 1 0 20.6 14Z"/>',
+  monitor: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
   grid: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
   agent:
     '<rect x="4" y="7" width="16" height="13" rx="4"/><path d="M12 3v4M8 12v2m8-2v2m-8 3h8M1 11v5m22-5v5"/>',
@@ -183,10 +186,39 @@ function allSessions() {
 function selected() {
   return allSessions().find((a) => a.id === S.selected);
 }
+function themeSelect() {
+  const preference = window.orbitTheme.getPreference();
+  return `<label class="field">Тема<select data-theme-preference aria-label="Тема">${[
+    ['system', 'Системная'],
+    ['light', 'Светлая'],
+    ['dark', 'Тёмная'],
+  ]
+    .map(
+      ([value, label]) =>
+        `<option value="${value}" ${preference === value ? 'selected' : ''}>${label}</option>`,
+    )
+    .join('')}</select></label>`;
+}
+function themeButton(extra = '') {
+  const preference = window.orbitTheme.getPreference();
+  return `<button type="button" class="icon-button theme-trigger ${extra}" data-a="theme" aria-label="Оформление" title="Оформление">${icon(preference === 'system' ? 'monitor' : preference === 'dark' ? 'moon' : 'sun', 20)}</button>`;
+}
+function syncThemeControls() {
+  const preference = window.orbitTheme.getPreference();
+  document.querySelectorAll('.theme-trigger').forEach((control) => {
+    control.innerHTML = icon(
+      preference === 'system' ? 'monitor' : preference === 'dark' ? 'moon' : 'sun',
+      20,
+    );
+    control.title =
+      'Тема: ' + { system: 'системная', dark: 'тёмная', light: 'светлая' }[preference];
+  });
+}
+window.addEventListener('orbit-theme-change', syncThemeControls);
 function shell() {
   if (!S.boot) return;
   const title = navs.find((n) => n[0] === S.view)?.[2];
-  app.innerHTML = `<div class="app-shell"><aside class="sidebar"><div class="logo"><span class="orbit-symbol"></span><span class="logo-text">Орбита</span></div><div class="side-label">Рабочее пространство</div>${nav()}<div class="side-bottom"><div class="host-card"><strong><span class="status-dot"></span>${escape(S.overview.system.hostname || 'Ваш компьютер')}</strong><span class="small">Проекты остаются на компьютере.<br>Управление всегда под рукой.</span></div><footer>ЛИЧНОЕ ПРОСТРАНСТВО · WI-FI</footer></div></aside><section class="workspace"><header class="topbar"><div class="breadcrumb"><span>Моё пространство</span>${icon('arrow', 11)}<strong>${escape(title)}</strong></div><div class="connection" id="connection"></div><span class="avatar" aria-label="Личное пространство">Я</span></header><main id="main" class="main ${S.view === 'agents' && S.selected ? 'chat-main' : ''}"></main></section>${nav(true)}</div>`;
+  app.innerHTML = `<div class="app-shell"><aside class="sidebar"><div class="logo"><span class="orbit-symbol"></span><span class="logo-text">Орбита</span></div><div class="side-label">Рабочее пространство</div>${nav()}<div class="side-bottom"><div class="host-card"><strong><span class="status-dot"></span>${escape(S.overview.system.hostname || 'Ваш компьютер')}</strong><span class="small">Проекты остаются на компьютере.<br>Управление всегда под рукой.</span></div><footer>ЛИЧНОЕ ПРОСТРАНСТВО · WI-FI</footer></div></aside><section class="workspace"><header class="topbar"><div class="breadcrumb"><span>Моё пространство</span>${icon('arrow', 11)}<strong>${escape(title)}</strong></div><div class="topbar-actions"><div class="connection" id="connection"></div>${themeButton()}<span class="avatar" aria-label="Личное пространство">Я</span></div></header><main id="main" class="main ${S.view === 'agents' && S.selected ? 'chat-main' : ''}"></main></section>${nav(true)}</div>`;
   setConnection(S.online);
   renderMain();
 }
@@ -609,7 +641,7 @@ function processesView(main) {
 
 function settingsView(main) {
   const b = S.boot;
-  main.innerHTML = `${heading('Ближе к вашим устройствам', 'Одна настройка — и ваше рабочее пространство всегда рядом.', false)}<div class="settings-grid"><section class="card"><h2>iPhone и iPad</h2>${b.pairing ? `<div class="row pairing"><img class="qr" src="${b.qr}" alt="QR-код подключения к Орбите"><div class="grow"><p class="small">Сканируйте камерой телефона</p><div class="pair-code"><div class="small">ОДНОРАЗОВЫЙ КОД</div><div class="pin">${b.pairing.pin}</div><div class="small">До ${new Date(b.pairing.expires).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div></div>${button('Обновить код', 'rotate-pin', 'soft', 'refresh')}</div></div>` : `<div class="row">${icon('shield', 22)}<p class="small">Это устройство уже подключено. Для нового устройства откройте Орбиту на компьютере.</p></div>`}<ol><li>Подключите устройство к той же Wi-Fi сети.</li><li>Откройте адрес подключения, установите локальный сертификат и включите доверие к нему.</li><li>Откройте защищённый адрес и введите код с компьютера.</li><li>В Safari: «Поделиться → На экран Домой».</li></ol><div class="path">${escape(b.urls.setup)}</div>${button('Скопировать адрес', 'copy-url', 'soft', 'copy')}<p class="small">Для полного режима приложения нужен доверенный HTTPS-сертификат. В фоне iOS может приостанавливать страницу; при открытии данные синхронизируются.</p>${b.fingerprint ? `<details><summary class="small">Отпечаток сертификата SHA-256</summary><code class="fingerprint">${b.fingerprint}</code></details>` : ''}</section><section class="card"><div class="row between"><h2>Доступные агенты</h2><button class="icon-button" data-a="providers-refresh" aria-label="Проверить подключение агентов">${icon('refresh', 15)}</button></div>${['codex', 'claude'].map((p) => `<div class="provider-status">${providerIcon(p)}<div class="grow"><strong>${providerName(p)}</strong><div class="small">${b.providers[p].authenticated ? 'Аккаунт подключён' : b.providers[p].available ? 'Требуется вход на компьютере' : 'Не удалось подключиться'}</div></div>${badge(b.providers[p].authenticated ? 'idle' : 'waiting')}</div>${b.providers[p].error ? `<p class="small">${escape(b.providers[p].error)}</p>` : ''}`).join('')}<p class="notice">Диалоги, запущенные из Орбиты, поддерживают сообщения, остановку и ответы на запросы. Существующие диалоги VS Code доступны для просмотра и продолжения в отдельной ветке.</p>${!b.providers.claude.authenticated ? '<p class="small">Для Claude откройте файл «Войти в Claude.cmd» на компьютере и войдите в аккаунт. После этого обновите статус.</p>' : ''}<p class="small">ИИ-агенты обращаются к своим провайдерам через интернет. Локальным остаётся доступ телефона к компьютеру.</p></section><section class="card"><h2>Подключённые устройства</h2>${S.devices.length ? S.devices.map((d) => `<div class="device">${icon('phone', 20)}<div class="grow"><strong>${escape(d.name)}</strong><div class="small">${ago(d.seen)}${d.id === S.session.device.id ? ' · это устройство' : ''}</div></div><button class="text-button" data-a="revoke-device" data-id="${escape(d.id)}">Отключить</button></div>`).join('') : '<p class="small">Телефон и планшет появятся здесь после подключения.</p>'}<p class="small">Разрешение действует 30 дней. Отключение сразу закрывает доступ устройства.</p>${!S.session.local ? button('Выйти на этом устройстве', 'logout', 'soft') : ''}</section><section class="card"><h2>Рабочее пространство</h2>${b.roots.map((r) => `<p><strong class="small">${escape(r.name)}</strong><br><span class="path">${escape(r.path)}</span></p>`).join('')}${S.session.local ? button('Подключить папку', 'add-root', 'soft', 'plus') : '<p class="small">Новые корневые папки подключаются с компьютера.</p>'}<p class="notice">Компьютер должен быть включён и подключён к сети. После сна или смены Wi-Fi соединение восстановится при доступности компьютера.</p></section></div>`;
+  main.innerHTML = `${heading('Ближе к вашим устройствам', 'Одна настройка — и ваше рабочее пространство всегда рядом.', false)}<div class="settings-grid"><section class="card theme-settings"><div><h2>Оформление</h2><p class="small">Выбор сохраняется на этом устройстве.</p></div>${themeSelect()}</section><section class="card"><h2>iPhone и iPad</h2>${b.pairing ? `<div class="row pairing"><img class="qr" src="${b.qr}" alt="QR-код подключения к Орбите"><div class="grow"><p class="small">Сканируйте камерой телефона</p><div class="pair-code"><div class="small">ОДНОРАЗОВЫЙ КОД</div><div class="pin">${b.pairing.pin}</div><div class="small">До ${new Date(b.pairing.expires).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div></div>${button('Обновить код', 'rotate-pin', 'soft', 'refresh')}</div></div>` : `<div class="row">${icon('shield', 22)}<p class="small">Это устройство уже подключено. Для нового устройства откройте Орбиту на компьютере.</p></div>`}<ol><li>Подключите устройство к той же Wi-Fi сети.</li><li>Откройте адрес подключения, установите локальный сертификат и включите доверие к нему.</li><li>Откройте защищённый адрес и введите код с компьютера.</li><li>В Safari: «Поделиться → На экран Домой».</li></ol><div class="path">${escape(b.urls.setup)}</div>${button('Скопировать адрес', 'copy-url', 'soft', 'copy')}<p class="small">Для полного режима приложения нужен доверенный HTTPS-сертификат. В фоне iOS может приостанавливать страницу; при открытии данные синхронизируются.</p>${b.fingerprint ? `<details><summary class="small">Отпечаток сертификата SHA-256</summary><code class="fingerprint">${b.fingerprint}</code></details>` : ''}</section><section class="card"><div class="row between"><h2>Доступные агенты</h2><button class="icon-button" data-a="providers-refresh" aria-label="Проверить подключение агентов">${icon('refresh', 15)}</button></div>${['codex', 'claude'].map((p) => `<div class="provider-status">${providerIcon(p)}<div class="grow"><strong>${providerName(p)}</strong><div class="small">${b.providers[p].authenticated ? 'Аккаунт подключён' : b.providers[p].available ? 'Требуется вход на компьютере' : 'Не удалось подключиться'}</div></div>${badge(b.providers[p].authenticated ? 'idle' : 'waiting')}</div>${b.providers[p].error ? `<p class="small">${escape(b.providers[p].error)}</p>` : ''}`).join('')}<p class="notice">Диалоги, запущенные из Орбиты, поддерживают сообщения, остановку и ответы на запросы. Существующие диалоги VS Code доступны для просмотра и продолжения в отдельной ветке.</p>${!b.providers.claude.authenticated ? '<p class="small">Для Claude откройте файл «Войти в Claude.cmd» на компьютере и войдите в аккаунт. После этого обновите статус.</p>' : ''}<p class="small">ИИ-агенты обращаются к своим провайдерам через интернет. Локальным остаётся доступ телефона к компьютеру.</p></section><section class="card"><h2>Подключённые устройства</h2>${S.devices.length ? S.devices.map((d) => `<div class="device">${icon('phone', 20)}<div class="grow"><strong>${escape(d.name)}</strong><div class="small">${ago(d.seen)}${d.id === S.session.device.id ? ' · это устройство' : ''}</div></div><button class="text-button" data-a="revoke-device" data-id="${escape(d.id)}">Отключить</button></div>`).join('') : '<p class="small">Телефон и планшет появятся здесь после подключения.</p>'}<p class="small">Разрешение действует 30 дней. Отключение сразу закрывает доступ устройства.</p>${!S.session.local ? button('Выйти на этом устройстве', 'logout', 'soft') : ''}</section><section class="card"><h2>Рабочее пространство</h2>${b.roots.map((r) => `<p><strong class="small">${escape(r.name)}</strong><br><span class="path">${escape(r.path)}</span></p>`).join('')}${S.session.local ? button('Подключить папку', 'add-root', 'soft', 'plus') : '<p class="small">Новые корневые папки подключаются с компьютера.</p>'}<p class="notice">Компьютер должен быть включён и подключён к сети. После сна или смены Wi-Fi соединение восстановится при доступности компьютера.</p></section></div>`;
 }
 function modal(title, description, content, cls = '') {
   dialog.className = cls;
@@ -647,7 +679,7 @@ async function openFile(p) {
 }
 function pairPage() {
   document.body.classList.remove('chat-open');
-  app.innerHTML = `<main class="pair-page"><div class="brand-mark">◉</div><p class="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</p><h1>Добро пожаловать<br>на вашу Орбиту.</h1><p>Проекты, файлы и агенты вашего компьютера — на этом устройстве.</p><form id="pair-form" class="card"><label class="field">Как назвать это устройство<input name="name" value="${/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)) ? 'Мой iPad' : /iPhone/.test(navigator.userAgent) ? 'Мой iPhone' : 'Моё устройство'}" required maxlength="80" autocomplete="off"></label><label class="field">Одноразовый код с компьютера<input class="pin-input" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required autocomplete="one-time-code"></label><p class="form-error" role="alert"></p><button class="button primary full">Подключить устройство ${icon('arrow', 15)}</button><p class="small">На компьютере: Орбита → Подключение.</p></form><p class="hint-line">${icon('shield', 14)}Подключение только внутри вашей Wi-Fi сети.</p></main>`;
+  app.innerHTML = `<main class="pair-page">${themeButton('theme-page-control')}<div class="brand-mark">◉</div><p class="eyebrow">ВАШЕ ЛИЧНОЕ ПРОСТРАНСТВО</p><h1>Добро пожаловать<br>на вашу Орбиту.</h1><p>Проекты, файлы и агенты вашего компьютера — на этом устройстве.</p><form id="pair-form" class="card"><label class="field">Как назвать это устройство<input name="name" value="${/iPad/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)) ? 'Мой iPad' : /iPhone/.test(navigator.userAgent) ? 'Мой iPhone' : 'Моё устройство'}" required maxlength="80" autocomplete="off"></label><label class="field">Одноразовый код с компьютера<input class="pin-input" name="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required autocomplete="one-time-code"></label><p class="form-error" role="alert"></p><button class="button primary full">Подключить устройство ${icon('arrow', 15)}</button><p class="small">На компьютере: Орбита → Подключение.</p></form><p class="hint-line">${icon('shield', 14)}Подключение только внутри вашей Wi-Fi сети.</p></main>`;
 }
 async function projects() {
   const result = await Promise.allSettled(
@@ -771,7 +803,7 @@ async function start() {
     if ('serviceWorker' in navigator && location.protocol === 'https:')
       navigator.serviceWorker.register('/sw.js').catch(() => {});
   } catch (e) {
-    app.innerHTML = `<main class="pair-page"><div class="brand-mark">◉</div><h1>Нужно восстановить связь</h1><p>${escape(e.message)}</p>${button('Попробовать снова', 'retry', 'primary', 'refresh')}</main>`;
+    app.innerHTML = `<main class="pair-page">${themeButton('theme-page-control')}<div class="brand-mark">◉</div><h1>Нужно восстановить связь</h1><p>${escape(e.message)}</p>${button('Попробовать снова', 'retry', 'primary', 'refresh')}</main>`;
   }
 }
 document.addEventListener('click', async (event) => {
@@ -780,6 +812,12 @@ document.addEventListener('click', async (event) => {
   const { a, id, path: p, root } = b.dataset;
   try {
     if (a === 'nav') await navigate(id);
+    else if (a === 'theme')
+      modal(
+        'Оформление',
+        'Выберите тему для этого устройства.',
+        `${themeSelect()}<p class="small">Системная тема меняется вместе с настройкой устройства.</p><div class="dialog-actions">${button('Готово', 'close-modal', 'primary')}</div>`,
+      );
     else if (a === 'new-agent') newAgent();
     else if (a === 'close-modal') dialog.close();
     else if (a === 'retry') start();

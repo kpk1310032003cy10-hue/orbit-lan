@@ -6,6 +6,7 @@ import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { verifyMobileUI } from './mobile-ui.mjs';
+import { verifyThemeUI } from './theme-ui.mjs';
 
 const isolatedState = process.env.ORBIT_TEST_URL
   ? null
@@ -139,6 +140,7 @@ try {
     await context.close();
   }
   await verifyMobileUI(browser, origin);
+  await verifyThemeUI(browser, origin);
   // A real shell command, its persisted output, and owned process-tree cancellation.
   const cwd = process.cwd();
   const task = await json('/api/tasks', {
@@ -214,7 +216,7 @@ try {
   assert.equal(badCSRF.status, 403);
   assert.deepEqual(failures, []);
   console.log(
-    'PASS: desktop, iPhone, iPad; 320–1440px, landscape, drafts, search focus, live disclosures, composer, send and stop; files; shell UTF-8 output + stop; HTTPS pairing, cookies, revocation, service worker; Origin/CSRF.',
+    'PASS: desktop, iPhone, iPad; light/dark/system themes, persistence, live OS and tab changes, blocked storage; 320–1440px, landscape, drafts, search focus, live disclosures, composer, send and stop; files; shell UTF-8 output + stop; HTTPS pairing, cookies, revocation, service worker; Origin/CSRF.',
   );
 } finally {
   await browser.close();

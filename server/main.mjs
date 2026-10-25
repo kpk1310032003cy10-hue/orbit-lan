@@ -182,7 +182,7 @@ async function servePublic(res, filename) {
   res.end(content);
 }
 function enrollment(res) {
-  const html = `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f4f6f8"><title>Орбита · Подключение</title><link rel="stylesheet" href="/style.css"><main class="enrollment"><div class="brand-mark">◉</div><p class="eyebrow">ВАШ КОМПЬЮТЕР · ВАША СЕТЬ</p><h1>Орбита на вашем устройстве</h1><p>Один раз настройте защищённое подключение к компьютеру.</p><ol><li><a class="primary button" href="/ca.crt">Скачать сертификат Орбиты</a><p>Safari предложит загрузить профиль. Откройте «Настройки → Основные → VPN и управление устройством» и установите загруженный профиль.</p></li><li><strong>Включите доверие</strong><p>«Настройки → Основные → Об этом устройстве → Доверие сертификатам». Включите доверие для Orbit LAN.</p></li><li><a class="primary button" href="${lanURL}">Открыть Орбиту ↗</a><p>Введите одноразовый код с экрана компьютера. Затем в Safari выберите «Поделиться → На экран Домой».</p></li></ol><p class="small">Сертификат выпущен вашим компьютером для локального соединения. Сверьте его отпечаток на компьютере перед установкой.</p><code class="fingerprint">${tls.fingerprint}</code></main></html>`;
+  const html = `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f6f2"><script src="/theme.js"></script><title>Орбита · Подключение</title><link rel="stylesheet" href="/style.css"><main class="enrollment"><div class="brand-mark">◉</div><p class="eyebrow">ВАШ КОМПЬЮТЕР · ВАША СЕТЬ</p><h1>Орбита на вашем устройстве</h1><p>Один раз настройте защищённое подключение к компьютеру.</p><ol><li><a class="primary button" href="/ca.crt">Скачать сертификат Орбиты</a><p>Safari предложит загрузить профиль. Откройте «Настройки → Основные → VPN и управление устройством» и установите загруженный профиль.</p></li><li><strong>Включите доверие</strong><p>«Настройки → Основные → Об этом устройстве → Доверие сертификатам». Включите доверие для Orbit LAN.</p></li><li><a class="primary button" href="${lanURL}">Открыть Орбиту ↗</a><p>Введите одноразовый код с экрана компьютера. Затем в Safari выберите «Поделиться → На экран Домой».</p></li></ol><p class="small">Сертификат выпущен вашим компьютером для локального соединения. Сверьте его отпечаток на компьютере перед установкой.</p><code class="fingerprint">${tls.fingerprint}</code></main></html>`;
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(html);
 }
@@ -211,6 +211,7 @@ async function handler(req, res) {
         });
         return res.end(tls.caDER);
       }
+      if (p === '/theme.js') return await servePublic(res, 'theme.js');
       if (p === '/style.css') return await servePublic(res, 'style.css');
       if (p === '/') return enrollment(res);
       return json(res, 404, { error: 'Страница не найдена' });
@@ -400,6 +401,7 @@ async function handler(req, res) {
     const publicFiles = new Set([
       'index.html',
       'app.js',
+      'theme.js',
       'style.css',
       'limits.js',
       'limits.css',

@@ -17,6 +17,7 @@ export async function verifyMobileUI(browser, origin) {
       isMobile: true,
       hasTouch: true,
       serviceWorkers: 'block',
+      colorScheme: [320, 390, 844].includes(width) ? 'dark' : 'light',
     });
     const page = await context.newPage();
     const errors = [];
@@ -184,6 +185,16 @@ export async function verifyMobileUI(browser, origin) {
         .click();
       await page.locator('.agent-card').click();
       assert.equal(await composer.inputValue(), 'Черновик должен сохраниться');
+      if (width === 1440) {
+        await page.getByRole('button', { name: 'Оформление', exact: true }).click();
+        await page.getByRole('combobox', { name: 'Тема', exact: true }).selectOption('dark');
+        await page.getByRole('button', { name: 'Готово', exact: true }).click();
+        assert.equal(
+          await composer.inputValue(),
+          'Черновик должен сохраниться',
+          'Theme switching retains the active chat draft',
+        );
+      }
       await page.locator('#quota-panel > summary').click();
       await page.evaluate(
         (payload) =>
