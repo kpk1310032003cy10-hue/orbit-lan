@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f6f8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Орбита" />
+    <meta
+      name="description"
+      content="Ваши проекты и агенты — рядом. Личный центр управления в домашней сети."
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/touch.css" />
+    <link rel="stylesheet" href="/limits.css" />
+    <title>Орбита · Личный центр управления</title>
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <div id="app">
+      <main class="loading">
+        <span class="brand-mark">◉</span>
+        <p>Подключаем вашу Орбиту…</p>
+      </main>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <dialog id="dialog"></dialog>
+  </body>
+</html>
