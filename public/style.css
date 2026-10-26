@@ -340,6 +340,54 @@ svg {
 .qr {
   background: #fff;
 }
+.wake-card {
+  grid-column: 1 / -1;
+}
+.wake-card .row h2 {
+  margin: 0;
+}
+.wake-values {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.wake-values code {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.wake-guide {
+  border-top: 1px solid var(--line-soft);
+}
+.wake-guide > summary {
+  min-height: 44px;
+  padding: 14px 0;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--green);
+}
+.wake-guide ol {
+  margin: 0 0 18px;
+}
+.wake-guide > .small:last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 700px) {
+  .wake-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 10px;
+  }
+  .wake-values > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .wake-guide .button {
+    width: 100%;
+  }
+}
 @media (max-width: 700px) {
   .topbar-actions {
     gap: 8px;

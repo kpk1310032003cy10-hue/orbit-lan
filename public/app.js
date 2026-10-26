@@ -113,6 +113,7 @@ const S = {
   eventSource: null,
   drafts: new Map(),
   agentListScroll: 0,
+  wake: null,
 };
 let toastTimer,
   refreshBusy = false,
@@ -641,7 +642,40 @@ function processesView(main) {
 
 function settingsView(main) {
   const b = S.boot;
-  main.innerHTML = `${heading('Ближе к вашим устройствам', 'Одна настройка — и ваше рабочее пространство всегда рядом.', false)}<div class="settings-grid"><section class="card theme-settings"><div><h2>Оформление</h2><p class="small">Выбор сохраняется на этом устройстве.</p></div>${themeSelect()}</section><section class="card"><h2>iPhone и iPad</h2>${b.pairing ? `<div class="row pairing"><img class="qr" src="${b.qr}" alt="QR-код подключения к Орбите"><div class="grow"><p class="small">Сканируйте камерой телефона</p><div class="pair-code"><div class="small">ОДНОРАЗОВЫЙ КОД</div><div class="pin">${b.pairing.pin}</div><div class="small">До ${new Date(b.pairing.expires).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div></div>${button('Обновить код', 'rotate-pin', 'soft', 'refresh')}</div></div>` : `<div class="row">${icon('shield', 22)}<p class="small">Это устройство уже подключено. Для нового устройства откройте Орбиту на компьютере.</p></div>`}<ol><li>Подключите устройство к той же Wi-Fi сети.</li><li>Откройте адрес подключения, установите локальный сертификат и включите доверие к нему.</li><li>Откройте защищённый адрес и введите код с компьютера.</li><li>В Safari: «Поделиться → На экран Домой».</li></ol><div class="path">${escape(b.urls.setup)}</div>${button('Скопировать адрес', 'copy-url', 'soft', 'copy')}<p class="small">Для полного режима приложения нужен доверенный HTTPS-сертификат. В фоне iOS может приостанавливать страницу; при открытии данные синхронизируются.</p>${b.fingerprint ? `<details><summary class="small">Отпечаток сертификата SHA-256</summary><code class="fingerprint">${b.fingerprint}</code></details>` : ''}</section><section class="card"><div class="row between"><h2>Доступные агенты</h2><button class="icon-button" data-a="providers-refresh" aria-label="Проверить подключение агентов">${icon('refresh', 15)}</button></div>${['codex', 'claude'].map((p) => `<div class="provider-status">${providerIcon(p)}<div class="grow"><strong>${providerName(p)}</strong><div class="small">${b.providers[p].authenticated ? 'Аккаунт подключён' : b.providers[p].available ? 'Требуется вход на компьютере' : 'Не удалось подключиться'}</div></div>${badge(b.providers[p].authenticated ? 'idle' : 'waiting')}</div>${b.providers[p].error ? `<p class="small">${escape(b.providers[p].error)}</p>` : ''}`).join('')}<p class="notice">Диалоги, запущенные из Орбиты, поддерживают сообщения, остановку и ответы на запросы. Существующие диалоги VS Code доступны для просмотра и продолжения в отдельной ветке.</p>${!b.providers.claude.authenticated ? '<p class="small">Для Claude откройте файл «Войти в Claude.cmd» на компьютере и войдите в аккаунт. После этого обновите статус.</p>' : ''}<p class="small">ИИ-агенты обращаются к своим провайдерам через интернет. Локальным остаётся доступ телефона к компьютеру.</p></section><section class="card"><h2>Подключённые устройства</h2>${S.devices.length ? S.devices.map((d) => `<div class="device">${icon('phone', 20)}<div class="grow"><strong>${escape(d.name)}</strong><div class="small">${ago(d.seen)}${d.id === S.session.device.id ? ' · это устройство' : ''}</div></div><button class="text-button" data-a="revoke-device" data-id="${escape(d.id)}">Отключить</button></div>`).join('') : '<p class="small">Телефон и планшет появятся здесь после подключения.</p>'}<p class="small">Разрешение действует 30 дней. Отключение сразу закрывает доступ устройства.</p>${!S.session.local ? button('Выйти на этом устройстве', 'logout', 'soft') : ''}</section><section class="card"><h2>Рабочее пространство</h2>${b.roots.map((r) => `<p><strong class="small">${escape(r.name)}</strong><br><span class="path">${escape(r.path)}</span></p>`).join('')}${S.session.local ? button('Подключить папку', 'add-root', 'soft', 'plus') : '<p class="small">Новые корневые папки подключаются с компьютера.</p>'}<p class="notice">Компьютер должен быть включён и подключён к сети. После сна или смены Wi-Fi соединение восстановится при доступности компьютера.</p></section></div>`;
+  main.innerHTML = `${heading('Ближе к вашим устройствам', 'Одна настройка — и ваше рабочее пространство всегда рядом.', false)}<div class="settings-grid"><section class="card theme-settings"><div><h2>Оформление</h2><p class="small">Выбор сохраняется на этом устройстве.</p></div>${themeSelect()}</section>${wakeCard()}<section class="card"><h2>iPhone и iPad</h2>${b.pairing ? `<div class="row pairing"><img class="qr" src="${b.qr}" alt="QR-код подключения к Орбите"><div class="grow"><p class="small">Сканируйте камерой телефона</p><div class="pair-code"><div class="small">ОДНОРАЗОВЫЙ КОД</div><div class="pin">${b.pairing.pin}</div><div class="small">До ${new Date(b.pairing.expires).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div></div>${button('Обновить код', 'rotate-pin', 'soft', 'refresh')}</div></div>` : `<div class="row">${icon('shield', 22)}<p class="small">Это устройство уже подключено. Для нового устройства откройте Орбиту на компьютере.</p></div>`}<ol><li>Подключите устройство к той же Wi-Fi сети.</li><li>Откройте адрес подключения, установите локальный сертификат и включите доверие к нему.</li><li>Откройте защищённый адрес и введите код с компьютера.</li><li>В Safari: «Поделиться → На экран Домой».</li></ol><div class="path">${escape(b.urls.setup)}</div>${button('Скопировать адрес', 'copy-url', 'soft', 'copy')}<p class="small">Для полного режима приложения нужен доверенный HTTPS-сертификат. В фоне iOS может приостанавливать страницу; при открытии данные синхронизируются.</p>${b.fingerprint ? `<details><summary class="small">Отпечаток сертификата SHA-256</summary><code class="fingerprint">${b.fingerprint}</code></details>` : ''}</section><section class="card"><div class="row between"><h2>Доступные агенты</h2><button class="icon-button" data-a="providers-refresh" aria-label="Проверить подключение агентов">${icon('refresh', 15)}</button></div>${['codex', 'claude'].map((p) => `<div class="provider-status">${providerIcon(p)}<div class="grow"><strong>${providerName(p)}</strong><div class="small">${b.providers[p].authenticated ? 'Аккаунт подключён' : b.providers[p].available ? 'Требуется вход на компьютере' : 'Не удалось подключиться'}</div></div>${badge(b.providers[p].authenticated ? 'idle' : 'waiting')}</div>${b.providers[p].error ? `<p class="small">${escape(b.providers[p].error)}</p>` : ''}`).join('')}<p class="notice">Диалоги, запущенные из Орбиты, поддерживают сообщения, остановку и ответы на запросы. Существующие диалоги VS Code доступны для просмотра и продолжения в отдельной ветке.</p>${!b.providers.claude.authenticated ? '<p class="small">Для Claude откройте файл «Войти в Claude.cmd» на компьютере и войдите в аккаунт. После этого обновите статус.</p>' : ''}<p class="small">ИИ-агенты обращаются к своим провайдерам через интернет. Локальным остаётся доступ телефона к компьютеру.</p></section><section class="card"><h2>Подключённые устройства</h2>${S.devices.length ? S.devices.map((d) => `<div class="device">${icon('phone', 20)}<div class="grow"><strong>${escape(d.name)}</strong><div class="small">${ago(d.seen)}${d.id === S.session.device.id ? ' · это устройство' : ''}</div></div><button class="text-button" data-a="revoke-device" data-id="${escape(d.id)}">Отключить</button></div>`).join('') : '<p class="small">Телефон и планшет появятся здесь после подключения.</p>'}<p class="small">Разрешение действует 30 дней. Отключение сразу закрывает доступ устройства.</p>${!S.session.local ? button('Выйти на этом устройстве', 'logout', 'soft') : ''}</section><section class="card"><h2>Рабочее пространство</h2>${b.roots.map((r) => `<p><strong class="small">${escape(r.name)}</strong><br><span class="path">${escape(r.path)}</span></p>`).join('')}${S.session.local ? button('Подключить папку', 'add-root', 'soft', 'plus') : '<p class="small">Новые корневые папки подключаются с компьютера.</p>'}<p class="notice">Компьютер должен быть включён и подключён к сети. После сна или смены Wi-Fi соединение восстановится при доступности компьютера.</p></section></div>`;
+}
+function wakeCard() {
+  const w = S.wake;
+  const p = w?.profile;
+  const message = !w
+    ? 'Проверяем сетевой адаптер…'
+    : w.state === 'configured'
+      ? 'Windows разрешила пробуждение. Первое пробуждение из сна проверьте с телефона.'
+      : w.state === 'needs_restart'
+        ? 'Настройки записаны. Чтобы применить их, нужна перезагрузка компьютера.'
+        : w.state === 'needs_setup'
+          ? 'Нужно включить пробуждение в Windows: запустите «Включить пробуждение с телефона.cmd» на компьютере и подтвердите системный запрос.'
+          : 'Драйвер не подтвердил настройку пробуждения. Проверьте адаптер и инструкцию ниже.';
+  return `<section class="card wake-card" id="wake-card"><div class="row between"><h2>Пробуждение с телефона</h2><button class="icon-button" data-a="wake-refresh" aria-label="Проверить пробуждение">${icon('refresh', 18)}</button></div><p class="small">${escape(message)}</p>${
+    p
+      ? `<div class="wake-values">${[
+          ['MAC-адрес', p.mac],
+          ['IP компьютера', p.ip],
+          ['Адрес рассылки', p.broadcast],
+          ['Протокол / порт', `${p.protocol} / ${p.port}`],
+        ]
+          .map(
+            ([label, value]) =>
+              `<div><span class="small">${label}</span><code>${escape(value)}</code></div>`,
+          )
+          .join('')}</div>`
+      : ''
+  }<details class="wake-guide"><summary>Как настроить iPhone и iPad</summary><p class="small">Во время сна Орбита на компьютере не работает. Команду пробуждения отправляет приложение на телефоне.</p><ol><li>Установите Mocha WOL и разрешите доступ к локальной сети.</li><li>Добавьте компьютер: MAC-адрес указан выше, WOL Port — 9. Включите WOL on LAN и WOL broadcast. IP для проверки доступности — адрес компьютера.</li><li>Сохраните профиль до перевода ПК в сон. Находясь в той же Wi-Fi сети, отправьте команду из Mocha WOL, затем откройте Орбиту.</li></ol><div class="row wrap gap"><a class="button secondary" href="https://apps.apple.com/app/id422625778" target="_blank" rel="noopener noreferrer">Mocha WOL для iPhone</a>${p ? button('Копировать MAC', 'wake-copy', 'soft', 'copy') + button('Скачать памятку', 'wake-download', 'soft', 'file') : ''}</div><p class="small">Если ПК не просыпается по Wi-Fi, проверьте разрешение пробуждения PCI-E в BIOS или используйте подключение компьютера кабелем к роутеру. Для кабеля нужны параметры его адаптера.</p></details></section>`;
+}
+function wakeText() {
+  const p = S.wake?.profile;
+  if (!p) return '';
+  return `Орбита — пробуждение компьютера\n\nMAC: ${p.mac}\nIP: ${p.ip}\nBroadcast: ${p.broadcast}\nUDP port: ${p.port}\n\nMocha WOL (бесплатно): https://apps.apple.com/app/id422625778\nWOL on LAN: On\nWOL broadcast: On\nРазрешите приложению доступ к локальной сети iPhone.\n\nСохраните профиль, затем переведите ПК в сон через меню Пуск. Отправьте команду из приложения с телефона в той же Wi-Fi сети. После пробуждения откройте ${S.boot.urls.secure}.\n\nРазрешение Windows не подтверждает успешное пробуждение: первый тест нужно выполнить с телефона. Если Wi-Fi не срабатывает, проверьте BIOS / используйте Ethernet и параметры его адаптера.\n`;
 }
 function modal(title, description, content, cls = '') {
   dialog.className = cls;
@@ -726,9 +760,14 @@ async function navigate(view) {
   window.scrollTo(0, 0);
   if (view === 'files') await loadFiles();
   if (view === 'settings') {
-    const result = await Promise.all([api('/api/bootstrap'), api('/api/devices')]);
+    const result = await Promise.all([
+      api('/api/bootstrap'),
+      api('/api/devices'),
+      api('/api/wake'),
+    ]);
     S.boot = result[0];
     S.devices = result[1].devices;
+    S.wake = result[2];
     renderMain();
   }
 }
@@ -796,7 +835,11 @@ async function start() {
     S.fileRoot = S.boot.roots[0]?.id;
     await Promise.all([refresh(false), projects()]);
     if (navs.some((n) => n[0] === location.hash.slice(1))) S.view = location.hash.slice(1);
-    if (S.view === 'settings') S.devices = (await api('/api/devices')).devices;
+    if (S.view === 'settings') {
+      const [devices, wake] = await Promise.all([api('/api/devices'), api('/api/wake')]);
+      S.devices = devices.devices;
+      S.wake = wake;
+    }
     shell();
     connectEvents();
     if (S.view === 'files') await loadFiles();
@@ -874,6 +917,22 @@ document.addEventListener('click', async (event) => {
       S.boot.providers = await api('/api/providers/refresh', {});
       renderMain();
       toast('Статус агентов обновлён');
+    } else if (a === 'wake-refresh') {
+      b.disabled = true;
+      S.wake = await api('/api/wake?refresh=1');
+      const guideOpen = $('#wake-card details').open;
+      $('#wake-card').outerHTML = wakeCard();
+      $('#wake-card details').open = guideOpen;
+    } else if (a === 'wake-copy') {
+      await navigator.clipboard.writeText(S.wake?.profile?.mac || '');
+      toast('MAC-адрес скопирован');
+    } else if (a === 'wake-download') {
+      const url = URL.createObjectURL(new Blob([wakeText()], { type: 'text/plain;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'Orbit-Wake.txt';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } else if (a === 'limits-refresh') {
       b.disabled = true;
       S.overview.limits = await api('/api/limits/refresh', {});

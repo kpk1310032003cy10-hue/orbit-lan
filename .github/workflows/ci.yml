@@ -32,6 +32,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      - name: Parse Windows setup scripts
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Get-ChildItem -LiteralPath scripts -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+          }
       - run: npm audit --omit=dev --audit-level=high
 
   browser:

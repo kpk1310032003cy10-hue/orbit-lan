@@ -16,5 +16,7 @@ Thumbs.db
 *.p12
 *.sqlite*
 runtime.json
+wake-result.json
+wake-backups/
 auth.json
 credentials.json

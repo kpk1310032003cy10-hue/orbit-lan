@@ -26,6 +26,7 @@ import { Discovery } from './discovery.mjs';
 import { Agents } from './agents.mjs';
 import { Processes, Tasks } from './processes.mjs';
 import { Limits } from './limits.mjs';
+import { WakeStatus } from './wake.mjs';
 
 const exec = promisify(execFile);
 // A second launch must not change the state of sessions owned by the first.
@@ -67,6 +68,7 @@ const broadcast = (event) => {
 };
 agents.on('event', broadcast);
 const limits = new Limits(rpc);
+const wake = new WakeStatus({ ip: config.lanIP, base, stateDir });
 limits.on('update', (payload) => broadcast({ kind: 'limits.updated', payload }));
 agents.on('rateLimits', ({ provider, info }) => {
   if (provider === 'claude') limits.observeClaude(info);
@@ -258,6 +260,8 @@ async function handler(req, res) {
           limits: limits.snapshot(),
         });
       if (p === '/api/limits' && req.method === 'GET') return json(res, 200, limits.snapshot());
+      if (p === '/api/wake' && req.method === 'GET')
+        return json(res, 200, await wake.read({ force: url.searchParams.get('refresh') === '1' }));
       if (p === '/api/limits/refresh' && req.method === 'POST')
         return json(res, 200, await limits.refreshCodex());
       if (p === '/api/events' && req.method === 'GET') {

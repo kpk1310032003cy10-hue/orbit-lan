@@ -118,6 +118,45 @@ try {
     await nav.getByRole('button', { name: 'Подключение' }).click();
     await page.locator('.pin').waitFor();
     assert.match(await page.locator('.pin').innerText(), /^\d{6}$/);
+    const wakeStatus = await json('/api/wake');
+    assert.equal(wakeStatus.testedFromSleep, false);
+    assert.equal('deviceId' in wakeStatus, false);
+    await page.route('**/api/wake*', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          state: 'configured',
+          armed: true,
+          magicPacket: true,
+          testedFromSleep: false,
+          profile: {
+            ip: '192.168.50.10',
+            mac: '02:00:00:00:00:10',
+            broadcast: '192.168.51.255',
+            protocol: 'UDP',
+            port: 9,
+          },
+        }),
+      }),
+    );
+    await page.getByRole('button', { name: 'Проверить пробуждение' }).click();
+    await page.locator('#wake-card').getByText('02:00:00:00:00:10', { exact: true }).waitFor();
+    await page.locator('#wake-card summary').click();
+    await page.getByRole('button', { name: 'Проверить пробуждение' }).click();
+    assert.equal(await page.locator('#wake-card details').evaluate((el) => el.open), true);
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.getByRole('button', { name: 'Копировать MAC' }).click();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '02:00:00:00:00:10');
+    const downloadEvent = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Скачать памятку' }).click();
+    const wakeDownload = await downloadEvent;
+    const guide = await fs.readFile(await wakeDownload.path(), 'utf8');
+    assert.ok(guide.includes('02:00:00:00:00:10') && guide.includes('192.168.51.255'));
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+      false,
+      `${name} wake guide overflow`,
+    );
     await page.screenshot({ path: `test-results/${name}-settings.png`, fullPage: true });
     await nav.getByRole('button', { name: 'Агенты' }).click();
     await page.getByRole('heading', { name: 'Ваши агенты' }).waitFor();
@@ -182,6 +221,7 @@ try {
   await page.goto(`https://127.0.0.1:${new URL(boot.urls.secure).port}`);
   await page.locator('#pair-form').waitFor();
   assert.equal(await page.evaluate(async () => (await fetch('/api/limits')).status), 401);
+  assert.equal(await page.evaluate(async () => (await fetch('/api/wake')).status), 401);
   const pin = (await json('/api/bootstrap')).pairing.pin;
   await page.locator('[name=name]').fill('Проверка браузером');
   await page.locator('[name=pin]').fill(pin);
