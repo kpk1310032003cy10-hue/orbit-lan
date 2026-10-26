@@ -1,9 +1,27 @@
 // Only the public application shell is cached. Conversations, file contents and
 // credentials always go directly to the computer and never enter Cache Storage.
-const CACHE = 'orbit-shell-v6';
+const CACHE = 'orbit-shell-v7';
 const SHELL = [
   '/',
   '/app.js',
+  '/chat.js',
+  '/chat.css',
+  '/markdown.js',
+  '/vendor/markdown-it.js',
+  '/vendor/highlight.js',
+  '/vendor/highlight/bash.js',
+  '/vendor/highlight/css.js',
+  '/vendor/highlight/diff.js',
+  '/vendor/highlight/javascript.js',
+  '/vendor/highlight/json.js',
+  '/vendor/highlight/markdown.js',
+  '/vendor/highlight/powershell.js',
+  '/vendor/highlight/python.js',
+  '/vendor/highlight/sql.js',
+  '/vendor/highlight/typescript.js',
+  '/vendor/highlight/xml.js',
+  '/vendor/highlight/yaml.js',
+
   '/theme.js',
   '/style.css',
   '/limits.js',

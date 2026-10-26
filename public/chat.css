@@ -1,0 +1,657 @@
+:root {
+  --syntax-keyword: #6e4b91;
+  --syntax-string: #3c703b;
+  --syntax-number: #98602b;
+  --syntax-comment: #66766a;
+  --syntax-function: #315f94;
+  --syntax-variable: #865241;
+  --syntax-attribute: #715a27;
+}
+:root[data-theme='dark'] {
+  --syntax-keyword: #c7ade8;
+  --syntax-string: #a9d196;
+  --syntax-number: #e5bd87;
+  --syntax-comment: #9cac9c;
+  --syntax-function: #a9cae8;
+  --syntax-variable: #edb49b;
+  --syntax-attribute: #dece94;
+}
+.chat-reading-area {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+#transcript {
+  width: 100%;
+  max-width: 78ch;
+  margin-inline: auto;
+}
+#history-controls {
+  text-align: center;
+  margin-bottom: 14px;
+}
+#history-controls:empty {
+  display: none;
+}
+.message {
+  margin-bottom: 30px;
+  font-size: 16px;
+  line-height: 1.75;
+  min-width: 0;
+}
+.message-label {
+  gap: 10px;
+  margin: 0 0 9px;
+  min-height: 34px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.message-role {
+  color: var(--ink-secondary);
+  font-weight: 600;
+}
+.message-label time {
+  color: var(--muted);
+  font-size: 11px;
+}
+.message-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  min-width: 36px;
+  margin-left: auto;
+  padding: 6px 9px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.message-copy:hover,
+.message-copy:focus-visible {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+.message.user {
+  margin-left: max(8%, 20px);
+  padding: 12px 18px 17px;
+  border: 1px solid var(--line-soft);
+}
+.message.user .message-label {
+  margin-bottom: 5px;
+}
+.message.system {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 24px 0;
+  font-size: 12px;
+}
+.message.system .message-label {
+  display: none;
+}
+.message.system .message-text {
+  border: 1px solid var(--line-soft);
+  border-radius: 20px;
+  padding: 6px 14px;
+}
+.message.error {
+  padding: 14px 18px;
+}
+.message.error .message-role {
+  color: var(--danger-text);
+}
+.message.output .message-text {
+  font:
+    13px/1.7 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  background: var(--surface-subtle);
+  border-radius: 12px;
+  padding: 14px;
+}
+.plain-message,
+.plain-long-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rich-text {
+  white-space: normal;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  color: var(--ink);
+}
+.rich-text > :first-child {
+  margin-top: 0;
+}
+.rich-text > :last-child {
+  margin-bottom: 0;
+}
+.rich-text p {
+  line-height: inherit;
+  margin: 0 0 1em;
+}
+.rich-text strong {
+  font-weight: 650;
+}
+.rich-text em {
+  font-style: italic;
+}
+.rich-text s {
+  color: var(--muted);
+}
+.rich-text h1,
+.rich-text h2,
+.rich-text h3,
+.rich-text h4,
+.rich-text h5,
+.rich-text h6 {
+  margin: 1.4em 0 0.6em;
+  line-height: 1.4;
+  letter-spacing: -0.3px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.rich-text h1,
+.rich-text h2 {
+  font-size: 1.35em;
+}
+.rich-text h3 {
+  font-size: 1.18em;
+}
+.rich-text h4,
+.rich-text h5,
+.rich-text h6 {
+  font-size: 1.04em;
+}
+.rich-text ul,
+.rich-text ol {
+  margin: 0.7em 0 1.1em;
+  padding-left: 1.5em;
+}
+.rich-text li {
+  padding-left: 0.15em;
+  margin: 0.5em 0;
+  line-height: 1.75;
+}
+.rich-text li::marker {
+  color: var(--ink-secondary);
+}
+.rich-text li > p {
+  margin: 0.35em 0;
+}
+.rich-text li > ul,
+.rich-text li > ol {
+  margin: 0.35em 0 0.65em;
+}
+.rich-text a,
+.rich-text .file-reference {
+  color: var(--green);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.rich-text a:hover,
+.rich-text .file-reference:hover {
+  text-decoration-thickness: 2px;
+}
+.rich-text .file-reference {
+  display: inline;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  vertical-align: baseline;
+  border-radius: 3px;
+}
+.rich-text .image-reference {
+  display: inline-block;
+  font-size: 0.93em;
+}
+.rich-text :not(pre) > code {
+  font:
+    0.86em/1.6 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  padding: 0.15em 0.4em;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--surface-selected);
+  color: var(--ink-secondary);
+  overflow-wrap: anywhere;
+}
+.rich-text blockquote {
+  margin: 1em 0;
+  padding: 13px 17px;
+  border-left: 3px solid var(--meter-fill);
+  border-radius: 0 12px 12px 0;
+  background: var(--surface-subtle);
+  color: var(--ink-secondary);
+}
+.rich-text blockquote > :last-child {
+  margin-bottom: 0;
+}
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.6em 0;
+}
+.rich-text .task-list-item {
+  position: relative;
+  list-style: none;
+}
+.task-marker {
+  position: absolute;
+  left: -1.4em;
+  top: 0.4em;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: 5px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1;
+}
+.task-marker.checked {
+  background: var(--mint);
+  border-color: var(--meter-fill);
+  color: var(--green);
+}
+.code-block,
+.message-table {
+  min-width: 0;
+  margin: 1.2em 0;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  overflow: hidden;
+  background: var(--surface-subtle);
+}
+.code-block figcaption,
+.message-table figcaption {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 15px;
+  min-height: 46px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.message-table figcaption > div {
+  display: flex;
+  gap: 3px;
+}
+.code-block figcaption button,
+.message-table figcaption button,
+.tool-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  border-radius: 9px;
+}
+.code-block figcaption button:hover,
+.message-table figcaption button:hover,
+.tool-actions button:hover {
+  background: var(--surface-hover);
+}
+.code-block pre {
+  margin: 0;
+  padding: 17px;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+  scrollbar-width: thin;
+  font:
+    13px/1.75 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  color: var(--ink);
+}
+.code-block code {
+  white-space: pre;
+  font: inherit;
+}
+.code-block pre:focus-visible,
+.table-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-meta .hljs-keyword,
+.hljs-doctag {
+  color: var(--syntax-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition {
+  color: var(--syntax-string);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--syntax-number);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-built_in,
+.hljs-type {
+  color: var(--syntax-function);
+}
+.hljs-variable,
+.hljs-deletion,
+.hljs-name,
+.hljs-tag {
+  color: var(--syntax-variable);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-selector-class,
+.hljs-meta {
+  color: var(--syntax-attribute);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 650;
+}
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  background: var(--surface);
+}
+.rich-text table {
+  display: table;
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  margin: 0;
+  table-layout: auto;
+  border: 0;
+}
+.rich-text thead {
+  display: table-header-group;
+}
+.rich-text tbody {
+  display: table-row-group;
+}
+.rich-text tr {
+  display: table-row;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+}
+.rich-text th,
+.rich-text td {
+  display: table-cell;
+  padding: 13px 15px;
+  min-width: 9ch;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.65;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.rich-text th {
+  background: var(--surface-selected);
+  font-weight: 600;
+}
+.rich-text td:first-child {
+  font-weight: 400;
+  font-size: 14px;
+}
+.rich-text tr:last-child td {
+  border-bottom: 0;
+}
+.rich-text td.align-center,
+.rich-text th.align-center {
+  text-align: center;
+}
+.rich-text td.align-right,
+.rich-text th.align-right {
+  text-align: right;
+}
+.rich-text th p,
+.rich-text td p {
+  margin: 0;
+}
+.table-cards {
+  background: var(--surface);
+  padding: 0 15px;
+}
+.table-cards[hidden],
+.table-scroll[hidden],
+#agent-activity[hidden],
+#chat-latest[hidden] {
+  display: none;
+}
+.table-record {
+  padding: 17px 0;
+  border-bottom: 1px solid var(--line);
+}
+.table-record:last-child {
+  border: 0;
+}
+.table-record-title {
+  font-weight: 600;
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.table-record dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(75px, 0.7fr) minmax(0, 1.3fr);
+  gap: 9px 14px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.table-record dt {
+  color: var(--muted);
+}
+.table-record dd {
+  margin: 0;
+}
+.tool {
+  margin: 16px 0;
+  background: var(--surface);
+}
+.tool > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 14px;
+  list-style: none;
+}
+.tool > summary::-webkit-details-marker {
+  display: none;
+}
+.tool > summary::before {
+  content: '›';
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+.tool[open] > summary::before {
+  transform: rotate(90deg);
+}
+.tool-title {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.tool-status {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tool-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10px;
+}
+.tool .tool-output {
+  margin: 0 10px 10px;
+}
+.plan-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 16px;
+}
+.plan-steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.plan-steps li > span {
+  min-width: 15px;
+  color: var(--muted);
+}
+.plan-steps li.completed > span {
+  color: var(--green);
+}
+.plan-steps li.in-progress {
+  color: var(--ink);
+  font-weight: 550;
+}
+.agent-activity {
+  width: 100%;
+  max-width: 78ch;
+  margin: 6px auto 0;
+  padding: 5px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.activity-dots {
+  letter-spacing: 3px;
+  font-size: 17px;
+  color: var(--green);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.jump-latest {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: calc(100% - 30px);
+  padding: 10px 16px;
+  border-radius: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 5px 20px var(--shadow-raised);
+  color: var(--green);
+  font-size: 13px;
+  white-space: nowrap;
+  z-index: 3;
+}
+@media (max-width: 700px), (max-height: 500px) and (max-width: 1000px) and (pointer: coarse) {
+  .chat-scroll {
+    padding: 18px 17px 24px;
+  }
+  .message {
+    font-size: 16px;
+    margin-bottom: 28px;
+  }
+  .message-label {
+    min-height: 40px;
+    margin-bottom: 7px;
+  }
+  .message-copy {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .message-copy > span {
+    display: none;
+  }
+  .message.user {
+    margin-left: 6%;
+    padding: 8px 15px 16px;
+  }
+  .message.user .message-label {
+    margin-bottom: 1px;
+  }
+  .rich-text li {
+    margin: 0.65em 0;
+  }
+  .rich-text ul,
+  .rich-text ol {
+    padding-left: 1.35em;
+  }
+  .code-block pre {
+    font-size: 13px;
+    padding: 14px;
+  }
+  .message-table figcaption,
+  .code-block figcaption {
+    padding-left: 13px;
+    gap: 6px;
+  }
+  .message-table figcaption button {
+    font-size: 12px;
+    padding-inline: 8px;
+  }
+  .rich-text th,
+  .rich-text td,
+  .rich-text td:first-child {
+    font-size: 14px;
+    padding: 12px;
+  }
+  .rich-text blockquote {
+    padding: 12px 14px;
+  }
+  .table-record dl {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .table-record dd {
+    margin-bottom: 9px;
+  }
+  .tool > summary {
+    padding: 12px;
+  }
+  .tool-title {
+    font-size: 13px;
+  }
+  .jump-latest {
+    bottom: 10px;
+    font-size: 12px;
+  }
+}

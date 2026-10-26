@@ -1,4 +1,6 @@
 import { limitsHTML } from './limits.js';
+import { TranscriptView, setTableView, tableText } from './chat.js';
+import { resolveFileReference } from './markdown.js';
 const $ = (s) => document.querySelector(s);
 const app = $('#app'),
   dialog = $('#dialog');
@@ -120,7 +122,9 @@ let toastTimer,
   renderTimer,
   scrollAtBottom = true,
   historyBusy = false,
-  fileVersion = null;
+  fileVersion = null,
+  transcriptView = null,
+  chatResize = null;
 const markupCache = new WeakMap();
 const emptyTranscript =
   '<div class="empty chat-empty"><strong>С чего начнём?</strong><p>Напишите задачу или задайте вопрос.<br>Агент работает с выбранной папкой на вашем ПК.</p></div>';
@@ -247,6 +251,11 @@ function renderMain() {
   const main = $('#main');
   if (!main) return;
   const chatting = S.view === 'agents' && Boolean(S.selected);
+  if (!chatting) {
+    chatResize?.disconnect();
+    chatResize = null;
+    transcriptView = null;
+  }
   document.body.classList.toggle('chat-open', chatting);
   document.body.dataset.view = S.view;
   main.className = `main ${chatting ? 'chat-main' : ''}`;
@@ -360,104 +369,13 @@ function agentsView(main) {
     <p class="hint-line">${icon('shield', 15)}Полное управление доступно задачам, запущенным в Орбите.</p>`;
 }
 
-function renderTranscript(events) {
-  const result = [],
-    itemMessages = new Map();
-  const itemEntry = (id, item) => {
-    if (!id) return;
-    if (itemMessages.has(id)) {
-      Object.assign(itemMessages.get(id), item);
-      return;
-    }
-    const entry = { ...item, id };
-    itemMessages.set(id, entry);
-    result.push(entry);
-  };
-  for (const e of events) {
-    const p = e.payload;
-    if (['user', 'assistant', 'system', 'error'].includes(e.kind))
-      result.push({ type: e.kind, text: p.text });
-    if (e.kind === 'delta') {
-      const entry = itemMessages.get(p.itemId);
-      itemEntry(p.itemId, { type: 'assistant', text: (entry?.text || '') + p.text });
-    }
-    if (e.kind === 'item') {
-      const i = p.item;
-      if (i.type === 'agentMessage' && i.text) itemEntry(i.id, { type: 'assistant', text: i.text });
-      else if (i.type === 'commandExecution')
-        itemEntry(i.id, {
-          type: 'tool',
-          title: i.command || 'Команда',
-          text: i.aggregatedOutput || '',
-          status: i.status,
-        });
-      else if (i.type === 'fileChange')
-        itemEntry(i.id, {
-          type: 'tool',
-          title: 'Изменения файлов',
-          text: (i.changes || []).map((c) => `${c.path}\n${c.diff || ''}`).join('\n\n'),
-          status: i.status,
-        });
-      else if (['mcpToolCall', 'webSearch', 'dynamicToolCall'].includes(i.type))
-        itemEntry(i.id, {
-          type: 'tool',
-          title: i.tool || i.type,
-          text: JSON.stringify(i.result || i.arguments || i.action || {}, null, 2),
-        });
-    }
-    if (e.kind === 'output') {
-      if (p.itemId) {
-        const entry = itemMessages.get(p.itemId);
-        itemEntry(p.itemId, {
-          type: 'tool',
-          title: entry?.title || 'Команда',
-          text: (entry?.text || '') + p.text,
-        });
-      } else {
-        const last = result.at(-1);
-        if (last?.type === 'output') last.text += p.text;
-        else result.push({ type: 'output', text: p.text });
-      }
-    }
-    if (e.kind === 'tool')
-      result.push({ type: 'tool', title: p.name, text: JSON.stringify(p.input, null, 2) });
-    if (e.kind === 'plan')
-      itemEntry('plan', {
-        type: 'tool',
-        title: 'План работы',
-        text: (p.plan || [])
-          .map(
-            (x) =>
-              `${x.status === 'completed' ? '✓' : x.status === 'inProgress' ? '→' : '○'} ${x.step}`,
-          )
-          .join('\n'),
-      });
-    if (e.kind === 'completed')
-      result.push({
-        type: 'system',
-        text:
-          p.status === 'interrupted'
-            ? 'Задача остановлена'
-            : p.status === 'failed'
-              ? 'Задача завершена с ошибкой'
-              : `Задача завершена${p.code !== undefined ? ` · код ${p.code}` : ''}${p.cost ? ` · $${p.cost.toFixed(3)}` : ''}`,
-      });
-  }
-  return result
-    .map((m) => {
-      if (m.type === 'tool')
-        return `<details class="tool" data-tool-id="${escape(m.id || m.title)}"><summary>${escape(m.title)}${m.status ? ` · ${escape({ inProgress: 'В работе', completed: 'Готово', failed: 'Ошибка', declined: 'Отклонено' }[m.status] || m.status)}` : ''}</summary><pre class="tool-output">${escape(m.text || 'Выполняется…')}</pre></details>`;
-      if (m.type === 'output') return `<pre class="tool-output">${escape(m.text)}</pre>`;
-      return `<div class="message ${m.type}">${['user', 'assistant'].includes(m.type) ? `<div class="message-label">${m.type === 'user' ? 'ВЫ' : providerName(selected()?.provider)}</div>` : ''}<div class="message-text">${escape(m.text)}</div></div>`;
-    })
-    .join('');
-}
 function externalEvents(items) {
   return items.flatMap(({ item: i }) => {
     if (i.type === 'userMessage')
       return [
         {
           kind: 'user',
+          seq: 'external:' + i.id,
           payload: { text: (i.content || []).map((c) => c.text || `[${c.type}]`).join('\n') },
         },
       ];
@@ -475,16 +393,25 @@ function chatView(main) {
     <aside class="card chat-sessions"><div class="row between">${button('Новая задача', 'new-agent', 'soft', 'plus')}<button class="icon-button" data-a="chat-back" aria-label="Все сессии">${icon('grid', 19)}</button></div>${sessions.map((s) => `<button class="chat-session ${s.id === a.id ? 'active' : ''}" data-a="open-session" data-id="${escape(s.id)}"><strong>${escape(s.title)}</strong><span class="small">${providerName(s.provider)} · ${escape(leaf(s.cwd))}</span></button>`).join('')}</aside>
     <section class="chat-panel"><header class="chat-heading"><button class="mobile-back icon-button" data-a="chat-back" aria-label="Назад к диалогам">${icon('back', 23)}</button>${providerIcon(a.provider)}<div class="grow"><h1 class="chat-title">${escape(a.title)}</h1><div class="small">${providerName(a.provider)} · ${escape(leaf(a.cwd))}</div></div><span id="chat-status">${badge(a.status)}</span>${!a.external && a.canStop ? button('Стоп', 'stop', 'danger', 'stop', 'data-online') : ''}</header>
     ${a.external ? `<details class="external-info"><summary>${icon('shield', 16)}Диалог из ${a.source === 'vscode' ? 'VS Code' : 'другого клиента'} ${icon('arrow', 14)}</summary><div><p>История обновляется каждые 10 секунд. Чтобы отправлять задачи и останавливать их из Орбиты, продолжите диалог отдельной веткой.</p>${button('Продолжить в Орбите', 'fork', 'secondary', 'plus', 'data-online')}</div></details>` : ''}
-    <div class="chat-scroll" id="chat-scroll">${a.external && S.cursor ? button('Предыдущие сообщения', 'older-external', 'soft') : !a.external && S.events.length >= 300 ? button('Предыдущие события', 'older-events', 'soft') : ''}<div id="transcript">${renderTranscript(a.external ? externalEvents(S.externalItems) : S.events) || emptyTranscript}</div></div>
+    <div class="chat-reading-area"><div class="chat-scroll" id="chat-scroll"><div id="history-controls"></div><div id="transcript"></div><div id="agent-activity" class="agent-activity" role="status" hidden><span class="activity-dots" aria-hidden="true">•••</span><span></span></div></div><button type="button" id="chat-latest" class="jump-latest" data-a="chat-latest" hidden>К последним сообщениям ↓</button></div>
     <div id="prompt-area">${promptHTML(a)}</div>
     ${a.provider === 'task' ? '' : `<form id="composer" class="chat-compose"><div class="compose-row"><textarea id="message" rows="1" placeholder="${a.external ? 'Напишите в Codex…' : a.canStop ? 'Добавьте уточнение…' : 'Напишите сообщение…'}" aria-label="Сообщение агенту" required maxlength="32000">${escape(S.drafts.get(a.id) || '')}</textarea><button class="send" aria-label="Отправить" data-online>${icon('send', 22)}</button></div><div class="compose-hint"><span>${a.external ? 'Отправка в очередь другого клиента' : a.canStop ? 'Уточнение к текущей задаче' : 'На вашем компьютере · ' + escape(leaf(a.cwd))}</span><span class="keyboard-hint">⌘ / Ctrl + Enter</span></div></form>`}
     </section></div>`;
   const scroll = $('#chat-scroll');
   scrollAtBottom = true;
-  scroll.scrollTop = scroll.scrollHeight;
-  scroll.addEventListener('scroll', () => {
-    scrollAtBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 90;
+  transcriptView = new TranscriptView($('#transcript'), {
+    provider: providerName(a.provider),
+    empty: emptyTranscript,
   });
+  updateChat();
+  scroll.addEventListener('scroll', () => {
+    updateReadingPosition();
+  });
+  chatResize?.disconnect();
+  chatResize = new ResizeObserver(() => {
+    if (scrollAtBottom) jumpToLatest();
+  });
+  chatResize.observe(scroll);
   fitComposer();
   markupCache.set($('#prompt-area'), promptHTML(a));
 }
@@ -493,6 +420,41 @@ function fitComposer() {
   if (!input) return;
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 144) + 'px';
+}
+function updateReadingPosition() {
+  const scroll = $('#chat-scroll');
+  if (!scroll) return;
+  scrollAtBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 60;
+  if ($('#chat-latest')) $('#chat-latest').hidden = scrollAtBottom;
+}
+function jumpToLatest() {
+  const scroll = $('#chat-scroll');
+  if (!scroll) return;
+  scroll.scrollTop = scroll.scrollHeight;
+  scrollAtBottom = true;
+  if ($('#chat-latest')) $('#chat-latest').hidden = true;
+}
+function updateHistoryControls() {
+  const area = $('#history-controls'),
+    a = selected();
+  if (!area || !a) return;
+  const action =
+    a.external && S.cursor
+      ? 'older-external'
+      : !a.external && S.events.length >= 300
+        ? 'older-events'
+        : null;
+  if (!action) {
+    area.replaceChildren();
+    return;
+  }
+  if (area.firstElementChild?.dataset.a !== action)
+    area.innerHTML = button(
+      a.external ? 'Предыдущие сообщения' : 'Предыдущие события',
+      action,
+      'soft',
+    );
+  area.firstElementChild.disabled = historyBusy;
 }
 function updateViewport() {
   const viewport = window.visualViewport;
@@ -535,35 +497,27 @@ async function loadHistory(older = false) {
         (a, b) => a.seq - b.seq,
       );
     }
-    if (older) renderMain();
-    else updateChat();
+    updateChat();
   } catch (e) {
     if (S.selected === id) toast(e.message);
   } finally {
     historyBusy = false;
+    updateHistoryControls();
   }
 }
 function updateChat() {
   if (S.view !== 'agents' || !S.selected) return;
   const a = selected(),
     transcript = $('#transcript');
-  if (!a || !transcript) return;
-  const openTools = new Set(
-    [...transcript.querySelectorAll('details[open]')].map((d) => d.dataset.toolId),
+  if (!a || !transcript || !transcriptView) return;
+  const scroll = $('#chat-scroll');
+  const stickToBottom = scrollAtBottom;
+  const top = scroll.getBoundingClientRect().top;
+  const anchor = [...transcript.children].find(
+    (node) => node.getBoundingClientRect().bottom > top + 1,
   );
-  const content =
-    renderTranscript(a.external ? externalEvents(S.externalItems) : S.events) || emptyTranscript;
-  const selection = window.getSelection();
-  const selecting =
-    selection && !selection.isCollapsed && transcript.contains(selection.anchorNode);
-  if (!selecting && markupCache.get(transcript) !== content) {
-    transcript.innerHTML = content;
-    markupCache.set(transcript, content);
-  }
-  transcript.querySelectorAll('details').forEach((d) => {
-    if (openTools.has(d.dataset.toolId)) d.open = true;
-  });
-  if (scrollAtBottom) $('#chat-scroll').scrollTop = $('#chat-scroll').scrollHeight;
+  const anchorTop = anchor?.getBoundingClientRect().top;
+  transcriptView.update(a.external ? externalEvents(S.externalItems) : S.events);
   const status = $('#chat-status');
   if (status.innerHTML !== badge(a.status)) status.innerHTML = badge(a.status);
   const heading = $('.chat-heading');
@@ -593,6 +547,23 @@ function updateChat() {
         ? 'Уточнение к текущей задаче'
         : 'На вашем компьютере · ' + leaf(a.cwd);
   }
+  const activity = $('#agent-activity');
+  if (activity) {
+    activity.hidden =
+      !a.canStop || a.external || a.provider === 'task' || Boolean(a.pending?.length);
+    const text =
+      a.status === 'stopping'
+        ? 'Останавливаем задачу…'
+        : a.status === 'starting'
+          ? 'Запускаем агента…'
+          : `${providerName(a.provider)} работает…`;
+    if (activity.lastElementChild.textContent !== text)
+      activity.lastElementChild.textContent = text;
+  }
+  updateHistoryControls();
+  if (stickToBottom) jumpToLatest();
+  else if (anchor?.isConnected) scroll.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
+  if ($('#chat-latest')) $('#chat-latest').hidden = scrollAtBottom;
   setConnection(S.online);
 }
 function filesView(main) {
@@ -695,10 +666,10 @@ async function newAgent({ cwd, forkId, title } = {}) {
     fields,
   );
 }
-async function openFile(p) {
+async function openFile(p, { root = S.fileRoot, line = null } = {}) {
   let r;
   try {
-    r = await api(`/api/file?root=${encodeURIComponent(S.fileRoot)}&path=${encodeURIComponent(p)}`);
+    r = await api(`/api/file?root=${encodeURIComponent(root)}&path=${encodeURIComponent(p)}`);
   } catch (e) {
     toast(e.message);
     return;
@@ -707,9 +678,16 @@ async function openFile(p) {
   modal(
     leaf(p),
     p,
-    `<form id="edit-file-form" data-path="${escape(p)}"><label class="field"><textarea name="content" spellcheck="false" aria-label="Содержимое файла">${escape(r.content)}</textarea></label><p class="small">При сохранении создаётся резервная копия. Если файл изменился на ПК, сохранение будет отменено.</p><p class="form-error" role="alert"></p><div class="dialog-actions"><a class="button secondary" href="/api/download?root=${encodeURIComponent(S.fileRoot)}&path=${encodeURIComponent(p)}">Скачать</a><button class="button primary">Сохранить</button></div></form>`,
+    `<form id="edit-file-form" data-root="${escape(root)}" data-path="${escape(p)}"><label class="field"><textarea name="content" spellcheck="false" aria-label="Содержимое файла">${escape(r.content)}</textarea></label><p class="small">При сохранении создаётся резервная копия. Если файл изменился на ПК, сохранение будет отменено.</p><p class="form-error" role="alert"></p><div class="dialog-actions"><a class="button secondary" href="/api/download?root=${encodeURIComponent(root)}&path=${encodeURIComponent(p)}">Скачать</a><button class="button primary">Сохранить</button></div></form>`,
     'file-editor',
   );
+  if (line) {
+    const editor = $('#edit-file-form textarea');
+    const lines = r.content.split('\n');
+    const position = lines.slice(0, line - 1).join('\n').length + (line > 1 ? 1 : 0);
+    editor.setSelectionRange(position, position + (lines[line - 1]?.length || 0));
+    editor.scrollTop = Math.max(0, line - 3) * parseFloat(getComputedStyle(editor).lineHeight);
+  }
 }
 function pairPage() {
   document.body.classList.remove('chat-open');
@@ -863,7 +841,34 @@ document.addEventListener('click', async (event) => {
       );
     else if (a === 'new-agent') newAgent();
     else if (a === 'close-modal') dialog.close();
-    else if (a === 'retry') start();
+    else if (a === 'chat-latest') jumpToLatest();
+    else if (a === 'copy-message' || a === 'copy-code' || a === 'copy-table') {
+      const text =
+        a === 'copy-code'
+          ? b.closest('.code-block').querySelector('code').textContent
+          : a === 'copy-table'
+            ? tableText(b.closest('.message-table'))
+            : transcriptView?.messages.get(b.closest('[data-message-id]')?.dataset.messageId)?.text;
+      if (text !== undefined) {
+        await navigator.clipboard.writeText(text);
+        toast(
+          a === 'copy-code'
+            ? 'Код скопирован'
+            : a === 'copy-table'
+              ? 'Таблица скопирована'
+              : 'Сообщение скопировано',
+          1800,
+        );
+      }
+    } else if (a === 'table-view') {
+      const table = b.closest('.message-table');
+      setTableView(table, !table.classList.contains('cards-view'));
+      updateReadingPosition();
+    } else if (a === 'file-reference') {
+      const reference = resolveFileReference(b.dataset.path, selected()?.cwd, S.boot.roots);
+      if (!reference) toast('Файл находится вне подключённых рабочих папок или путь не распознан.');
+      else await openFile(reference.path, reference);
+    } else if (a === 'retry') start();
     else if (a === 'open-session') await openSession(id);
     else if (a === 'chat-back') {
       S.selected = null;
@@ -1007,7 +1012,7 @@ document.addEventListener('submit', async (event) => {
       await openSession(r.id);
     } else if (form.id === 'edit-file-form') {
       const r = await api('/api/file', {
-        root: S.fileRoot,
+        root: form.dataset.root || S.fileRoot,
         path: form.dataset.path,
         content: data.content,
         version: fileVersion,
@@ -1015,7 +1020,7 @@ document.addEventListener('submit', async (event) => {
       fileVersion = r.version;
       toast('Файл сохранён. Резервная копия создана.');
       dialog.close();
-      await loadFiles();
+      if (S.view === 'files') await loadFiles();
     } else if (form.id === 'root-form') {
       const r = await api('/api/roots', data);
       S.boot.roots = r.roots;
@@ -1061,7 +1066,8 @@ window.addEventListener('resize', () => {
 document.addEventListener('focusin', () => requestAnimationFrame(updateViewport));
 document.addEventListener('focusout', () => requestAnimationFrame(updateViewport));
 document.addEventListener('selectionchange', () => {
-  if (window.getSelection()?.isCollapsed) requestAnimationFrame(updateChat);
+  if (window.getSelection()?.isCollapsed && transcriptView?.hasDeferred)
+    requestAnimationFrame(updateChat);
 });
 updateViewport();
 document.addEventListener('keydown', (e) => {

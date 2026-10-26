@@ -7,6 +7,7 @@ import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { verifyMobileUI } from './mobile-ui.mjs';
 import { verifyThemeUI } from './theme-ui.mjs';
+import { verifyChatUI } from './chat-ui.mjs';
 
 const isolatedState = process.env.ORBIT_TEST_URL
   ? null
@@ -180,6 +181,7 @@ try {
   }
   await verifyMobileUI(browser, origin);
   await verifyThemeUI(browser, origin);
+  await verifyChatUI(browser, origin);
   // A real shell command, its persisted output, and owned process-tree cancellation.
   const cwd = process.cwd();
   const task = await json('/api/tasks', {
