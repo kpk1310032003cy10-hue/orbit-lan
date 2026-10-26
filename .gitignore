@@ -17,6 +17,9 @@ Thumbs.db
 *.sqlite*
 runtime.json
 wake-result.json
+input-wake-result.json
+wake-packet-result.json
+msi-wake-inspection.json
 wake-backups/
 auth.json
 credentials.json

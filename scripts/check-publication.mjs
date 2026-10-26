@@ -6,7 +6,7 @@ const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8', window
   .split('\0')
   .filter(Boolean);
 const forbiddenPath =
-  /(?:^|\/)(?:node_modules|\.local|test-results|coverage|tls|backups|wake-backups|\.codex|\.claude)(?:\/|$)|(?:^|\/)(?:\.env(?:\..*)?|auth\.json|credentials\.json|runtime\.json|wake-result\.json)$|\.(?:pem|key|crt|pfx|p12|sqlite(?:-wal|-shm)?)$/i;
+  /(?:^|\/)(?:node_modules|\.local|test-results|coverage|tls|backups|wake-backups|\.codex|\.claude)(?:\/|$)|(?:^|\/)(?:\.env(?:\..*)?|auth\.json|credentials\.json|runtime\.json|(?:input-)?wake(?:-packet)?-result\.json|msi-wake-inspection\.json)$|\.(?:pem|key|crt|pfx|p12|sqlite(?:-wal|-shm)?)$/i;
 const patterns = [
   ['private key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
   ['GitHub token', /\b(?:gh[pousr]_[A-Za-z0-9_]{30,}|github_pat_[A-Za-z0-9_]{35,})\b/],
