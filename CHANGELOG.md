@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Chat reading and formatting
+
+- Local Markdown rendering for managed agents and VS Code history, including lists, quotes, task lists, tables and clickable links.
+- Syntax highlighting, code and message copying, spreadsheet-friendly table copying and a table/card switch.
+- Scoped file references with line navigation, without changing the file browser's current root.
+- Incremental message updates preserve selections, reading position, expanded tool output, drafts and older-history anchors.
+- HTML remains text, unsafe link schemes are rejected and remote images are never fetched automatically.
+- Browser dependency bundles and their licences are tracked and checked against the npm lockfile.
+
 ### Wake from sleep
 
 - Windows adapter inspection and an administrator setup script with parameter backups and restore mode.
