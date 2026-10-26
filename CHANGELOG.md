@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Wake from sleep
+
+- Windows adapter inspection and an administrator setup script with parameter backups and restore mode.
+- Authenticated wake profile, subnet-aware broadcast address, setup status and downloadable phone instructions.
+- iPhone/iPad setup through a native Wake-on-LAN client; an armed adapter is never reported as a completed wake test.
+
 ### Appearance
 
 - System, light and dark themes with a header control and a settings selector.
