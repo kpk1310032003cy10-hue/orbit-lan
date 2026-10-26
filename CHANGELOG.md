@@ -13,6 +13,9 @@
 
 ### Wake from sleep
 
+- Targeted keyboard/mouse wake permission repair with verified changes and restore from backup.
+- A bounded, administrator packet receiver verifies phone Magic Packets while awake and removes its subnet-scoped firewall rule on completion.
+- Separate troubleshooting for Windows permissions, packet delivery and MSI AM5 USB/PCI-E firmware wake settings.
 - Windows adapter inspection and an administrator setup script with parameter backups and restore mode.
 - Authenticated wake profile, subnet-aware broadcast address, setup status and downloadable phone instructions.
 - iPhone/iPad setup through a native Wake-on-LAN client; an armed adapter is never reported as a completed wake test.
