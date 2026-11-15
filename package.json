@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "playwright-core": "^1.56.0",
-    "prettier": "^3.9.10"
+    "prettier": "^3.10.1"
   },
   "license": "MIT",
   "repository": {
