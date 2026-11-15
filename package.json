@@ -28,7 +28,7 @@
     "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
-    "playwright-core": "^1.56.0",
+    "playwright-core": "^1.65.0",
     "prettier": "^3.9.10"
   },
   "license": "MIT",
